@@ -14,8 +14,8 @@ try:
 except ImportError:
     pass
 
-from PySide6.QtCore import Qt, QTimer, QPropertyAnimation, QEasingCurve, QPoint
-from PySide6.QtGui import QFont, QIcon, QFontDatabase, QPalette, QColor
+from PySide6.QtCore import Qt, QTimer, QPropertyAnimation, QEasingCurve, QPoint, QSize
+from PySide6.QtGui import QFont, QIcon, QFontDatabase, QPalette, QColor, QPainter, QPainterPath, QPixmap
 from PySide6.QtWidgets import (
     QApplication, QMainWindow, QWidget, QFrame,
     QVBoxLayout, QHBoxLayout, QGridLayout, QSizePolicy,
@@ -28,7 +28,23 @@ import ui_theme as T
 from calculator_logic import safe_eval, format_number, build_choices
 from ad_system import AdManager
 from robi_chat import RobiChatWidget
-from robi_battle import RobiBattleOverlay
+from robi_battle import RobiBattleOverlay, get_asset_path
+
+
+def make_circular_pixmap(pixmap: QPixmap, size: int) -> QPixmap:
+    """Mask a pixmap into a clean anti-aliased circle with transparent corners."""
+    out = QPixmap(size, size)
+    out.fill(Qt.transparent)
+    painter = QPainter(out)
+    painter.setRenderHint(QPainter.Antialiasing, True)
+    painter.setRenderHint(QPainter.SmoothPixmapTransform, True)
+    path = QPainterPath()
+    path.addEllipse(0, 0, size, size)
+    painter.setClipPath(path)
+    scaled = pixmap.scaled(size, size, Qt.KeepAspectRatioByExpanding, Qt.SmoothTransformation)
+    painter.drawPixmap((size - scaled.width()) // 2, (size - scaled.height()) // 2, scaled)
+    painter.end()
+    return out
 
 # ── State constants ───────────────────────────────────────────────────────────
 STATE_IDLE    = "IDLE"
@@ -520,24 +536,38 @@ class CalculaterApp(QMainWindow):
         ans_title_row.addWidget(self._ans_title)
         ans_title_row.addStretch()
 
-        # Circular Chatbot Avatar Icon
-        self._robi_circle_btn = QPushButton("🤖")
-        self._robi_circle_btn.setFixedSize(42, 42)
+        # Circular Chatbot Avatar Icon (using Robi logo circle asset)
+        self._robi_circle_btn = QPushButton()
+        self._robi_circle_btn.setFixedSize(44, 44)
         self._robi_circle_btn.setCursor(Qt.PointingHandCursor)
         self._robi_circle_btn.setToolTip("Chat with Robi (RageBot AI)")
+
+        robi_icon_path = get_asset_path("Angry Robi.png")
+        if not os.path.exists(robi_icon_path):
+            robi_icon_path = get_asset_path("Robi logo circle.png")
+        if os.path.exists(robi_icon_path):
+            src_pix = QPixmap(robi_icon_path)
+            if not src_pix.isNull():
+                circular_pix = make_circular_pixmap(src_pix, 40)
+                self._robi_circle_btn.setIcon(QIcon(circular_pix))
+                self._robi_circle_btn.setIconSize(QSize(40, 40))
+
+        if self._robi_circle_btn.icon().isNull():
+            self._robi_circle_btn.setText("🤖")
+
         self._robi_circle_btn.setStyleSheet(f"""
             QPushButton {{
-                background: qlineargradient(x1:0, y1:0, x2:1, y2:1,
-                    stop:0 {T.ACCENT_PRIMARY}, stop:1 #7C3AED);
-                color: white;
-                border: 2px solid white;
-                border-radius: 21px;
-                font-size: 20px;
+                background-color: transparent;
+                border: 2px solid {T.ACCENT_PRIMARY};
+                border-radius: 22px;
+                padding: 0px;
             }}
             QPushButton:hover {{
-                background: qlineargradient(x1:0, y1:0, x2:1, y2:1,
-                    stop:0 {T.ACCENT_HOVER}, stop:1 #6D28D9);
-                border: 2px solid {T.ACCENT_LIGHT};
+                background-color: {T.ACCENT_LIGHT};
+                border: 2px solid {T.ACCENT_HOVER};
+            }}
+            QPushButton:pressed {{
+                background-color: #BFDBFE;
             }}
         """)
         self._robi_circle_btn.clicked.connect(self._toggle_robi)
@@ -678,27 +708,6 @@ class CalculaterApp(QMainWindow):
         robi_outer_lay.setContentsMargins(14, 0, 14, 14)
         robi_outer_lay.setSpacing(6)
 
-        ask_robi_header = QHBoxLayout()
-        robi_toggle_btn = QPushButton("💬  Ask Robi")
-        robi_toggle_btn.setFixedHeight(30)
-        robi_toggle_btn.setCursor(Qt.PointingHandCursor)
-        robi_toggle_btn.setStyleSheet(f"""
-            QPushButton {{
-                background-color: transparent;
-                color: {T.ACCENT_PRIMARY};
-                border: 1.5px solid {T.ACCENT_PRIMARY};
-                border-radius: 15px;
-                font-size: 12px;
-                font-weight: 600;
-                padding: 0 12px;
-            }}
-            QPushButton:hover {{ background-color: {T.ACCENT_LIGHT}; }}
-        """)
-        robi_toggle_btn.clicked.connect(self._toggle_robi)
-        ask_robi_header.addWidget(robi_toggle_btn)
-        ask_robi_header.addStretch()
-        robi_outer_lay.addLayout(ask_robi_header)
-
         self._robi_widget = RobiChatWidget()
         self._robi_widget.essay_rejected.connect(self._on_essay_rejected)
         self._robi_widget.essay_accepted.connect(self._on_essay_accepted)
@@ -736,27 +745,50 @@ class CalculaterApp(QMainWindow):
                 row_btns.append(btn)
             self._keypad_buttons.append(row_btns)
 
+    def swap_keypad_pair(self, r1: int, c1: int, r2: int, c2: int):
+        """
+        Physically swap the positions, labels, and click bindings of two buttons
+        directly on the calculator keypad grid.
+        """
+        if (r1, c1) == (r2, c2):
+            return
+        btn1 = self._keypad_buttons[r1][c1]
+        btn2 = self._keypad_buttons[r2][c2]
+
+        # Remove both from grid layout
+        self._keypad_layout.removeWidget(btn1)
+        self._keypad_layout.removeWidget(btn2)
+
+        # Place at swapped grid positions
+        self._keypad_layout.addWidget(btn1, r2, c2)
+        self._keypad_layout.addWidget(btn2, r1, c1)
+
+        btn1.show()
+        btn2.show()
+
+        # Update 2D matrix so self._keypad_buttons[r][c] matches physical screen layout
+        self._keypad_buttons[r1][c1] = btn2
+        self._keypad_buttons[r2][c2] = btn1
+
     def scramble_keypad(self):
-        """Randomly shuffle all button positions in the keypad grid."""
-        # Collect all buttons
-        flat = [btn for row in self._keypad_buttons for btn in row]
-        positions = [(r, c) for r in range(len(KEYPAD_GRID)) for c in range(len(KEYPAD_GRID[r]))]
+        """
+        True physical keypad button swapping (1% sabotage).
+        Physically swaps button positions, labels, and click bindings directly
+        on the calculator keypad grid, updating the live UI immediately.
+        """
+        rows = len(self._keypad_buttons)
+        cols = len(self._keypad_buttons[0])
+        coords = [(r, c) for r in range(rows) for c in range(cols)]
 
-        # Remove all from grid without deleting
-        for btn in flat:
-            self._keypad_layout.removeWidget(btn)
+        # Swap multiple random pairs across the grid (e.g. '1' with '4', 'sin' with '7', etc.)
+        num_swaps = random.randint(8, 14)
+        for _ in range(num_swaps):
+            c1, c2 = random.sample(coords, 2)
+            self.swap_keypad_pair(c1[0], c1[1], c2[0], c2[1])
 
-        random.shuffle(positions)
-        self._keypad_buttons = []
-        pos_iter = iter(positions)
-        for row_def in KEYPAD_GRID:
-            row_btns = []
-            for _ in row_def:
-                r, c = next(pos_iter)
-                btn = flat.pop(0)
-                self._keypad_layout.addWidget(btn, r, c)
-                row_btns.append(btn)
-            self._keypad_buttons.append(row_btns)
+        self._keypad_layout.activate()
+        self._keypad_layout.update()
+        QApplication.processEvents()
 
     def get_random_adjacent_value(self, btn: "CalcButton") -> str:
         """Find the value of a random adjacent button for misclick sabotage."""

@@ -3,15 +3,32 @@ import os
 import random
 import threading
 
-from PySide6.QtCore import Qt, Signal, QObject, QTimer, QEvent
-from PySide6.QtGui import QFont, QTextCursor
+from PySide6.QtCore import Qt, Signal, QObject, QTimer, QEvent, QSize
+from PySide6.QtGui import QFont, QTextCursor, QPixmap, QPainter, QPainterPath
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton, QDialog,
     QTextEdit, QLineEdit, QFrame, QSizePolicy, QScrollArea
 )
 
 import ui_theme as T
-from ad_system import AdPopup, AD_TEMPLATES
+from ad_system import AdPopup, get_random_ad_template, AD_TEMPLATES
+from robi_battle import get_asset_path
+
+
+def make_rounded_pixmap(pixmap: QPixmap, size: int, radius: int = 6) -> QPixmap:
+    """Mask a pixmap into a clean square with rounded corners."""
+    out = QPixmap(size, size)
+    out.fill(Qt.transparent)
+    painter = QPainter(out)
+    painter.setRenderHint(QPainter.Antialiasing, True)
+    painter.setRenderHint(QPainter.SmoothPixmapTransform, True)
+    path = QPainterPath()
+    path.addRoundedRect(0, 0, size, size, radius, radius)
+    painter.setClipPath(path)
+    scaled = pixmap.scaled(size, size, Qt.KeepAspectRatioByExpanding, Qt.SmoothTransformation)
+    painter.drawPixmap((size - scaled.width()) // 2, (size - scaled.height()) // 2, scaled)
+    painter.end()
+    return out
 
 # ── Groq client ──────────────────────────────────────────────────────────────
 try:
@@ -172,9 +189,39 @@ class RobiChatWidget(QWidget):
             }}
         """)
         h_lay = QHBoxLayout(header)
-        h_lay.setContentsMargins(14, 0, 14, 0)
+        h_lay.setContentsMargins(12, 0, 14, 0)
+        h_lay.setSpacing(8)
 
-        bot_lbl = QLabel("🤖  Robi (RageBot)")
+        # Angry Robi icon for the chatbot header
+        self._icon_lbl = QLabel()
+        angry_robi_path = get_asset_path("Angry Robi.png")
+        _icon_loaded = False
+        if os.path.exists(angry_robi_path):
+            pix = QPixmap(angry_robi_path)
+            if not pix.isNull():
+                sq_pix = make_rounded_pixmap(pix, 28, radius=8)
+                self._icon_lbl.setPixmap(sq_pix)
+                self._icon_lbl.setFixedSize(28, 28)
+                self._icon_lbl.setStyleSheet("background: transparent; border-radius: 8px;")
+                _icon_loaded = True
+        if not _icon_loaded:
+            # Fallback: try Robi logo square
+            sq_path = get_asset_path("Robi logo square.png")
+            if os.path.exists(sq_path):
+                pix2 = QPixmap(sq_path)
+                if not pix2.isNull():
+                    sq_pix2 = make_rounded_pixmap(pix2, 28, radius=6)
+                    self._icon_lbl.setPixmap(sq_pix2)
+                    self._icon_lbl.setFixedSize(28, 28)
+                    self._icon_lbl.setStyleSheet("background: transparent; border-radius: 6px;")
+                    _icon_loaded = True
+        if not _icon_loaded:
+            self._icon_lbl.setText("🤖")
+            self._icon_lbl.setFont(QFont(T.FONT_FAMILY, 14))
+            self._icon_lbl.setStyleSheet("color: white; background: transparent;")
+        h_lay.addWidget(self._icon_lbl)
+
+        bot_lbl = QLabel("Robi (RageBot)")
         bot_lbl.setFont(QFont(T.FONT_FAMILY, 13, QFont.Bold))
         bot_lbl.setStyleSheet("color: white; background: transparent;")
         h_lay.addWidget(bot_lbl)
@@ -355,7 +402,7 @@ class RobiChatWidget(QWidget):
     def _spawn_ad(self):
         try:
             top = self.window()
-            template = random.choice(AD_TEMPLATES)
+            template = get_random_ad_template()
             ad = AdPopup(top, template)
             ad.show()
             ad.raise_()
@@ -594,13 +641,36 @@ class RobiChatWidget(QWidget):
 
     # ── Display helpers ───────────────────────────────────────────────────────
     def _append_robi(self, text: str):
+        # Build the avatar img tag from Angry Robi.png (20px inline icon)
+        avatar_html = ""
+        try:
+            angry_path = get_asset_path("Angry Robi.png")
+            if os.path.exists(angry_path):
+                # Use a data URI so QTextEdit can embed it inline
+                _pix = QPixmap(angry_path)
+                if not _pix.isNull():
+                    _pix_sm = _pix.scaled(20, 20, Qt.KeepAspectRatio, Qt.SmoothTransformation)
+                    import tempfile, os as _os
+                    _tmp = tempfile.NamedTemporaryFile(suffix=".png", delete=False)
+                    _tmp_name = _tmp.name
+                    _tmp.close()
+                    _pix_sm.save(_tmp_name, "PNG")
+                    # QTextEdit supports local file:// image references
+                    avatar_html = f'<img src="file:///{_tmp_name.replace(chr(92), "/")}" width="20" height="20" style="vertical-align:middle; margin-right:4px; border-radius:4px;">'
+        except Exception:
+            pass
+
         self._chat_display.append(
-            f'<div style="margin:6px 0;">'
-            f'<span style="font-weight:700; color:{T.ACCENT_PRIMARY};">🤖 Robi</span><br>'
-            f'<span style="background-color:{T.ROBI_BUBBLE_BOT};border-radius:8px;padding:6px 10px;display:inline-block;line-height:1.4;">{text}</span>'
+            f'<div style="margin:6px 0; max-width:100%;">'
+            f'<span style="font-weight:700; color:{T.ACCENT_PRIMARY};">'
+            f'{avatar_html}Robi</span><br>'
+            f'<span style="background-color:{T.ROBI_BUBBLE_BOT};border-radius:8px;'
+            f'padding:6px 10px;display:block;line-height:1.5;'
+            f'white-space:normal;word-wrap:break-word;">{text}</span>'
             f'</div>'
         )
         self._chat_display.moveCursor(QTextCursor.End)
+        self._chat_display.ensureCursorVisible()
 
     def _append_user(self, text: str):
         self._chat_display.append(
