@@ -3,14 +3,20 @@ import os
 import sys
 import math
 import random
-import threading
+import struct
 from typing import List, Optional
 
+from shiboken6 import isValid
 from PySide6.QtCore import (
-    Qt, QTimer, QRect, QRectF, QPointF, Signal, QElapsedTimer
+    Qt, QTimer, QRect, QRectF, QPointF, Signal, QElapsedTimer, QUrl,
+    QByteArray, QBuffer, QIODevice, QPropertyAnimation, QEasingCurve,
+    QCoreApplication, qWarning
 )
 from PySide6.QtGui import (
     QPainter, QColor, QFont, QPen, QPainterPath, QPolygonF, QPixmap
+)
+from PySide6.QtMultimedia import (
+    QAudio, QAudioFormat, QAudioOutput, QAudioSink, QMediaPlayer
 )
 from PySide6.QtWidgets import QWidget
 
@@ -43,42 +49,79 @@ def get_asset_path(filename: str) -> str:
     return candidates[0]
 
 
-# ── 8-bit sounds (winsound on Windows, silent elsewhere) ──────────────────────
-try:
-    import winsound
-    _HAS_WINSOUND = True
-except ImportError:
-    _HAS_WINSOUND = False
+# ── Battle audio ──────────────────────────────────────────────────────────────
+SFX_VOLUME = 0.12
+BATTLE_MUSIC_VOLUME = 0.75
+_ACTIVE_SFX_SINKS: List[QAudioSink] = []
+
+_SFX_TONES = {
+    "encounter": [(850, 60), (1200, 60), (1600, 100)],
+    "slash": [(1800, 40), (900, 60)],
+    "hurt": [(240, 80)],
+    "hit_robi": [(450, 70), (320, 90)],
+    "shatter": [(800, 40), (500, 60), (250, 120)],
+    "select": [(1100, 50)],
+}
 
 
 def play_8bit_sound(sound_type: str):
-    if not _HAS_WINSOUND:
+    tones = _SFX_TONES.get(sound_type)
+    if not tones:
         return
 
-    def _worker():
-        try:
-            if sound_type == "encounter":
-                winsound.Beep(850, 60)
-                winsound.Beep(1200, 60)
-                winsound.Beep(1600, 100)
-            elif sound_type == "slash":
-                winsound.Beep(1800, 40)
-                winsound.Beep(900, 60)
-            elif sound_type == "hurt":
-                winsound.Beep(240, 80)
-            elif sound_type == "hit_robi":
-                winsound.Beep(450, 70)
-                winsound.Beep(320, 90)
-            elif sound_type == "shatter":
-                winsound.Beep(800, 40)
-                winsound.Beep(500, 60)
-                winsound.Beep(250, 120)
-            elif sound_type == "select":
-                winsound.Beep(1100, 50)
-        except Exception:
-            pass
+    sample_rate = 44100
+    fade_samples = int(sample_rate * 0.004)
+    samples = bytearray()
+    total_duration_ms = 0
+    for frequency, duration_ms in tones:
+        sample_count = int(sample_rate * duration_ms / 1000)
+        tone = bytearray(sample_count * 2)
+        for index in range(sample_count):
+            envelope = min(
+                1.0,
+                index / fade_samples,
+                (sample_count - index - 1) / fade_samples,
+            )
+            value = int(32767 * 0.35 * envelope * math.sin(2 * math.pi * frequency * index / sample_rate))
+            struct.pack_into("<h", tone, index * 2, value)
+        samples.extend(tone)
+        silence_samples = int(sample_rate * 0.01)
+        samples.extend(bytes(silence_samples * 2))
+        total_duration_ms += duration_ms + 10
 
-    threading.Thread(target=_worker, daemon=True).start()
+    audio_format = QAudioFormat()
+    audio_format.setSampleRate(sample_rate)
+    audio_format.setChannelCount(1)
+    audio_format.setSampleFormat(QAudioFormat.SampleFormat.Int16)
+
+    sink = QAudioSink(audio_format, QCoreApplication.instance())
+    sink.setVolume(SFX_VOLUME)
+    buffer = QBuffer(sink)
+    buffer.setData(QByteArray(bytes(samples)))
+    if not buffer.open(QIODevice.OpenModeFlag.ReadOnly):
+        sink.deleteLater()
+        raise RuntimeError("Unable to open the battle sound-effect buffer")
+
+    def report_audio_error(state):
+        if (
+            state == QAudio.State.StoppedState
+            and isValid(sink)
+            and sink.error() != QAudio.Error.NoError
+        ):
+            qWarning(f"Battle sound effect failed to play: {sink.error()}")
+
+    sink.stateChanged.connect(report_audio_error)
+    _ACTIVE_SFX_SINKS.append(sink)
+    sink.start(buffer)
+
+    def stop_sound():
+        if sink in _ACTIVE_SFX_SINKS:
+            sink.stateChanged.disconnect(report_audio_error)
+            _ACTIVE_SFX_SINKS.remove(sink)
+            sink.stop()
+            sink.deleteLater()
+
+    QTimer.singleShot(total_duration_ms + 250, stop_sound)
 
 
 ROBI_TAUNTS = [
@@ -210,6 +253,9 @@ class RobiBattleOverlay(QWidget):
         self.death_shards: List[ShatterShard] = []
 
         self._load_sprites()
+        self._prepare_battle_music()
+        self._battle_music_started = False
+        self._battle_music_fade: Optional[QPropertyAnimation] = None
 
         # Game loop (~60 FPS, real dt)
         self._clock = QElapsedTimer()
@@ -221,6 +267,48 @@ class RobiBattleOverlay(QWidget):
         _set_battle_active(True)
         self._generate_shatter_cracks()
         play_8bit_sound("encounter")
+
+    def _prepare_battle_music(self):
+        music_path = get_asset_path("robi_battle_theme.mp3")
+        if not os.path.isfile(music_path):
+            raise FileNotFoundError(f"Robi battle music asset not found: {music_path}")
+
+        self._battle_music_output = QAudioOutput(self)
+        self._battle_music_output.setVolume(0.0)
+        self._battle_music_player = QMediaPlayer(self)
+        self._battle_music_player.setAudioOutput(self._battle_music_output)
+        self._battle_music_player.setLoops(QMediaPlayer.Loops.Infinite)
+        self._battle_music_player.errorOccurred.connect(self._on_battle_music_error)
+        self._battle_music_player.setSource(QUrl.fromLocalFile(music_path))
+
+    def showEvent(self, event):
+        super().showEvent(event)
+        if not self._battle_music_started:
+            self._battle_music_started = True
+            self._battle_music_player.play()
+            self._fade_battle_music(BATTLE_MUSIC_VOLUME, 700)
+
+    def _fade_battle_music(self, target_volume: float, duration_ms: int, stop_after: bool = False):
+        if self._battle_music_fade is not None:
+            self._battle_music_fade.stop()
+
+        fade = QPropertyAnimation(self._battle_music_output, b"volume", self)
+        fade.setDuration(duration_ms)
+        fade.setStartValue(self._battle_music_output.volume())
+        fade.setEndValue(target_volume)
+        fade.setEasingCurve(QEasingCurve.Type.InOutCubic)
+        if stop_after:
+            fade.finished.connect(self._battle_music_player.stop)
+        self._battle_music_fade = fade
+        fade.start()
+
+    def _stop_battle_music(self):
+        if self._battle_music_fade is not None:
+            self._battle_music_fade.stop()
+        self._battle_music_player.stop()
+
+    def _on_battle_music_error(self, error, error_string: str):
+        qWarning(f"Robi battle music playback failed ({error}): {error_string}")
 
     # ── Sprites ───────────────────────────────────────────────────────────────
     def _load_pix(self, name: str) -> Optional[QPixmap]:
@@ -385,6 +473,7 @@ class RobiBattleOverlay(QWidget):
 
             if self.robi_hp <= 0:
                 self.state = self.STATE_VICTORY
+                self._fade_battle_music(0.0, 1500, stop_after=True)
             else:
                 self.state = self.STATE_DIALOGUE
                 idx = min(self.hits_landed - 1, len(ROBI_TAUNTS) - 1)
@@ -495,6 +584,7 @@ class RobiBattleOverlay(QWidget):
             return
         self._finished = True
         self.timer.stop()
+        self._stop_battle_music()
         _set_battle_active(False)
         if won is True:
             self.battle_won.emit()
@@ -515,6 +605,7 @@ class RobiBattleOverlay(QWidget):
 
     def closeEvent(self, event):
         # Safety net if the widget is closed externally
+        self._stop_battle_music()
         if not self._finished:
             self._finished = True
             self.timer.stop()

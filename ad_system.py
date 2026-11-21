@@ -8,7 +8,7 @@ from PySide6.QtCore import Qt, QTimer, QPoint, QSize, QRect
 from PySide6.QtGui import QFont, QColor, QPalette, QCursor, QPixmap, QPainter, QDesktopServices
 from PySide6.QtWidgets import (
     QWidget, QLabel, QPushButton, QVBoxLayout, QHBoxLayout, QGridLayout,
-    QFrame, QSizePolicy, QApplication
+    QFrame, QSizePolicy, QApplication, QGraphicsDropShadowEffect
 )
 import ui_theme as T
 
@@ -97,21 +97,27 @@ def _write_corrupt_file():
 class AdPopup(QWidget):
     """A jarring, intrusive popup ad that floats over the calculator."""
 
-    def __init__(self, parent_widget: QWidget, template: dict):
+    def __init__(self, parent_widget: QWidget, template: dict, target_area: str = "random"):
         top_parent = parent_widget.window() if parent_widget else None
         super().__init__(top_parent, Qt.FramelessWindowHint | Qt.WindowStaysOnTopHint)
         self.setAttribute(Qt.WA_DeleteOnClose, True)
         self._parent = top_parent
         self._template = template
+        self._target_area = target_area
         self._corrupt = template.get("corrupt_file", False)
         self._interacted = False
         self._setup_ui(template)
-        self._position_randomly(top_parent)
+        shadow = QGraphicsDropShadowEffect(self)
+        shadow.setBlurRadius(30)
+        shadow.setColor(QColor(0, 0, 0, 210))
+        shadow.setOffset(0, 8)
+        self.setGraphicsEffect(shadow)
+        self._position_randomly(top_parent, target_area)
 
     # ── Layout ──────────────────────────────────────────────────────────────
     def _setup_ui(self, t: dict):
         self.setObjectName("ad_root")
-        self.setFixedWidth(310)
+        self.setFixedWidth(390)
         image_path = t.get("image", None)
         click_url = t.get("lock_in_url", None)
 
@@ -119,7 +125,7 @@ class AdPopup(QWidget):
         self.setStyleSheet("""
             #ad_root {
                 background-color: #FFFFFF;
-                border: 1px solid #DADCE0;
+                border: 4px solid #EF4444;
                 border-radius: 12px;
             }
             QLabel {
@@ -129,8 +135,23 @@ class AdPopup(QWidget):
         """)
 
         outer = QVBoxLayout(self)
-        outer.setContentsMargins(14, 10, 14, 14)
-        outer.setSpacing(10)
+        outer.setContentsMargins(10, 8, 10, 12)
+        outer.setSpacing(9)
+
+        notice = QLabel("ADVERTISEMENT")
+        notice.setAlignment(Qt.AlignCenter)
+        notice.setFixedHeight(30)
+        notice.setFont(QFont(T.FONT_FAMILY, 12, QFont.Bold))
+        notice.setStyleSheet("""
+            QLabel {
+                background-color: #FDE047;
+                color: #7F1D1D;
+                border: 1px solid #DC2626;
+                border-radius: 5px;
+                padding: 3px;
+            }
+        """)
+        outer.addWidget(notice)
 
         def _make_close_btn(circle: bool) -> QPushButton:
             btn = QPushButton("✕")
@@ -183,7 +204,7 @@ class AdPopup(QWidget):
             if os.path.exists(full_path):
                 pixmap = QPixmap(full_path)
                 if not pixmap.isNull():
-                    max_width = 282
+                    max_width = 362
                     if pixmap.width() > max_width:
                         pixmap = pixmap.scaledToWidth(max_width, Qt.SmoothTransformation)
 
@@ -226,7 +247,7 @@ class AdPopup(QWidget):
             if t.get("headline"):
                 hl = QLabel(t["headline"])
                 hl.setWordWrap(True)
-                hl.setFont(QFont(T.FONT_FAMILY, 13, QFont.Bold))
+                hl.setFont(QFont(T.FONT_FAMILY, 15, QFont.Bold))
                 hl.setStyleSheet("color: #1E1E1E; background: transparent;")
                 outer.addWidget(hl)
         else:
@@ -240,20 +261,20 @@ class AdPopup(QWidget):
 
             hl = QLabel(t["headline"])
             hl.setWordWrap(True)
-            hl.setFont(QFont(T.FONT_FAMILY, 13, QFont.Bold))
+            hl.setFont(QFont(T.FONT_FAMILY, 15, QFont.Bold))
             hl.setStyleSheet("color: #1E1E1E; background: transparent;")
             outer.addWidget(hl)
 
             body = QLabel(t["body"])
             body.setWordWrap(True)
-            body.setFont(QFont(T.FONT_FAMILY, 10))
+            body.setFont(QFont(T.FONT_FAMILY, 12))
             body.setStyleSheet("color: #5F6368; background: transparent;")
             outer.addWidget(body)
 
         # CTA button — Desmos blue (hidden when no CTA text)
         if t.get("cta"):
             cta = QPushButton(t["cta"])
-            cta.setFixedHeight(36)
+            cta.setFixedHeight(42)
             cta.setCursor(Qt.PointingHandCursor)
             cta.setStyleSheet("""
                 QPushButton {
@@ -261,8 +282,8 @@ class AdPopup(QWidget):
                     color: #FFFFFF;
                     border: none;
                     border-radius: 8px;
-                    font-size: 13px;
-                    font-weight: 600;
+                    font-size: 15px;
+                    font-weight: 700;
                     padding: 0 12px;
                 }
                 QPushButton:hover {
@@ -277,17 +298,30 @@ class AdPopup(QWidget):
 
         self.adjustSize()
 
-    def _position_randomly(self, parent: QWidget):
-        """Position the ad randomly over the parent, favoring the answer area."""
+    def _position_randomly(self, parent: QWidget, target_area: str):
+        """Randomize ad placement within a high-impact UI area."""
         pw = parent.width() if (parent and parent.width() > 200) else 1000
         ph = parent.height() if (parent and parent.height() > 200) else 650
         aw = self.width() or 310
         ah = self.height() or 180
 
-        min_x = max(10, int(pw * 0.35))
-        max_x = max(min_x, pw - aw - 20)
-        min_y = max(10, int(ph * 0.15))
-        max_y = max(min_y, ph - ah - 20)
+        if target_area == "random":
+            target_area = random.choice(("calculator", "chatbot")) if pw > 700 else "calculator"
+
+        areas = {
+            "calculator": (0.02, 0.42, 0.28, 0.92),
+            "chatbot": (0.42, 0.98, 0.42, 0.95),
+            "essay": (0.05, 0.95, 0.22, 0.85),
+        }
+        left, right, top, bottom = areas.get(target_area, areas["calculator"])
+        min_x = max(0, int(pw * left))
+        max_x = min(pw - aw - 10, int(pw * right) - aw)
+        min_y = max(0, int(ph * top))
+        max_y = min(ph - ah - 10, int(ph * bottom) - ah)
+        if max_x < min_x:
+            min_x = max_x = max(0, min(min_x, pw - aw))
+        if max_y < min_y:
+            min_y = max_y = max(0, min(min_y, ph - ah))
 
         x = random.randint(min_x, max_x) if max_x >= min_x else min_x
         y = random.randint(min_y, max_y) if max_y >= min_y else min_y
@@ -347,17 +381,17 @@ class AdManager:
     def is_paused(self) -> bool:
         return self._paused
 
-    def maybe_trigger_click_ad(self):
-        """10% probability on keypad click."""
+    def maybe_trigger_click_ad(self, target_area: str = "calculator", parent_widget: QWidget = None):
+        """25% probability on calculator, essay, or chatbot interactions."""
         if self._paused:
             return
-        if random.random() < 0.10:
-            self._spawn_ad()
+        if random.random() < 0.25:
+            self._spawn_ad(target_area, parent_widget)
 
     def _schedule_next_timer(self):
         if self._paused:
             return
-        interval_ms = random.randint(10_000, 20_000)
+        interval_ms = random.randint(5_000, 10_000)
         self._timer.setSingleShot(True)
         self._timer.start(interval_ms)
 
@@ -372,13 +406,13 @@ class AdManager:
             if not self._paused:
                 self._schedule_next_timer()
 
-    def _spawn_ad(self):
+    def _spawn_ad(self, target_area: str = "random", parent_widget: QWidget = None):
         if self._paused:
             return
         try:
             # TEMPORARY: Force Huss ad (last template in list)
             template = AD_TEMPLATES[-1]
-            ad = AdPopup(self._parent, template)
+            ad = AdPopup(parent_widget or self._parent, template, target_area)
             self._active_ads = [a for a in self._active_ads if not a.isHidden()]
             self._active_ads.append(ad)
             ad.show()

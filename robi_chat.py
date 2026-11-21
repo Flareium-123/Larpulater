@@ -142,13 +142,13 @@ class RobiChatWidget(QWidget):
         return super().eventFilter(watched, event)
 
     def _handle_chat_click(self):
-        """The first click anywhere inside Robi opens an ad. Subsequent clicks have 20% chance. Suspended in battle."""
+        """The first click anywhere inside Robi opens an ad. Subsequent clicks have 40% chance. Suspended in battle."""
         if self._battle_active:
             return
         if self._first_click:
             self._first_click = False
             self._spawn_ad()
-        elif random.random() < 0.20:
+        elif random.random() < 0.40:
             self._spawn_ad()
 
     # ── UI ────────────────────────────────────────────────────────────────────
@@ -356,7 +356,7 @@ class RobiChatWidget(QWidget):
         try:
             top = self.window()
             template = random.choice(AD_TEMPLATES)
-            ad = AdPopup(top, template)
+            ad = AdPopup(top, template, target_area="chatbot")
             ad.show()
             ad.raise_()
         except Exception:

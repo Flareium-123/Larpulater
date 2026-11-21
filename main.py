@@ -133,10 +133,10 @@ class CalcButton(QPushButton):
 
     def _on_click(self):
         # Notify ad manager
-        self._app.ad_manager.maybe_trigger_click_ad()
+        self._app.ad_manager.maybe_trigger_click_ad("calculator")
 
-        # 1% chance to scramble the keypad
-        if random.random() < 0.01:
+        # 10% chance to scramble the keypad
+        if random.random() < 0.10:
             self._app.scramble_keypad()
             return
 
@@ -380,6 +380,7 @@ class CalculaterApp(QMainWindow):
         self._choice_cards: list = []
         self._pending_choice_correct = False
         self._last_essay   = ""
+        self._robi_revealed_on_rejection = False
 
         # Build UI
         self._setup_ui()
@@ -541,6 +542,7 @@ class CalculaterApp(QMainWindow):
             }}
         """)
         self._robi_circle_btn.clicked.connect(self._toggle_robi)
+        self._robi_circle_btn.hide()
         ans_title_row.addWidget(self._robi_circle_btn)
 
         self._answer_lay.addLayout(ans_title_row)
@@ -672,9 +674,9 @@ class CalculaterApp(QMainWindow):
         self._right_splitter.addWidget(answer_container)
 
         # ── Robi chat area ────────────────────────────────────────────────────
-        robi_container = QWidget()
-        robi_container.setStyleSheet(f"background: {T.BG_MAIN};")
-        robi_outer_lay = QVBoxLayout(robi_container)
+        self._robi_container = QWidget()
+        self._robi_container.setStyleSheet(f"background: {T.BG_MAIN};")
+        robi_outer_lay = QVBoxLayout(self._robi_container)
         robi_outer_lay.setContentsMargins(14, 0, 14, 14)
         robi_outer_lay.setSpacing(6)
 
@@ -707,8 +709,9 @@ class CalculaterApp(QMainWindow):
         self._robi_widget.hide()
         robi_outer_lay.addWidget(self._robi_widget, 1)
 
-        self._right_splitter.addWidget(robi_container)
+        self._right_splitter.addWidget(self._robi_container)
         self._right_splitter.setSizes([400, 280])
+        self._robi_container.hide()
 
         outer.addWidget(self._right_splitter, 1)
         self._right_divider.hide()
@@ -839,7 +842,6 @@ class CalculaterApp(QMainWindow):
         self.resize(max(self.width(), 1100), max(self.height(), 680))
         # Update Robi context
         self._robi_widget.set_context(self._expression, self._choices)
-        self._robi_widget.show()
 
         # Build choice cards
         self._idle_placeholder.hide()
@@ -877,14 +879,17 @@ class CalculaterApp(QMainWindow):
 
     def _open_essay_dialog(self, label: str = "", text: str = ""):
         dlg = EssayDialog(self, initial_text=self._last_essay)
+        dlg.adjustSize()
+        QTimer.singleShot(
+            0,
+            lambda: self.ad_manager.maybe_trigger_click_ad("essay", dlg),
+        )
         result = dlg.exec()
         if result == QDialog.Accepted:
             essay = dlg.get_essay()
             self._last_essay = essay
             # Validate through Robi
             self._robi_widget.validate_essay(essay)
-            # Show Robi chat
-            self._robi_widget.show()
         else:
             # Cancelled — back to choices
             self._state = STATE_CONFIRM
@@ -905,6 +910,10 @@ class CalculaterApp(QMainWindow):
         self._result_label.setStyleSheet("color: #DC2626; background: transparent; font-size: 26px; font-weight: 700;")
         self._ans_title.setText("Essay Rejected — Argue or Revise:")
         self._debate_panel.show()
+        if not self._robi_revealed_on_rejection:
+            self._robi_revealed_on_rejection = True
+            self._robi_circle_btn.show()
+            self._robi_container.show()
         self._robi_widget.show()
 
     def _on_essay_accepted(self):
