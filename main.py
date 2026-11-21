@@ -152,17 +152,22 @@ class CalcButton(QPushButton):
 class ChoiceCard(QPushButton):
     """A multiple-choice answer card with confirmation-trap mechanic."""
 
-    def __init__(self, label: str, text: str, is_correct: bool, on_confirm):
+    def __init__(self, label: str, text: str, is_correct: bool, on_confirm, on_select=None):
         super().__init__()
         self._label      = label
         self._text       = text
         self._is_correct = is_correct
         self._on_confirm = on_confirm
+        self._on_select  = on_select
         self._confirmed  = False
         self.setCursor(Qt.PointingHandCursor)
         self.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
         self.setFixedHeight(52)
         self._refresh_text(first=True)
+        self._apply_default_style()
+        self.clicked.connect(self._handle_click)
+
+    def _apply_default_style(self):
         self.setStyleSheet(f"""
             QPushButton {{
                 background-color: {T.BG_CARD};
@@ -180,7 +185,24 @@ class ChoiceCard(QPushButton):
                 color: {T.ACCENT_PRIMARY};
             }}
         """)
-        self.clicked.connect(self._handle_click)
+
+    def _apply_selected_style(self):
+        self.setStyleSheet(f"""
+            QPushButton {{
+                background-color: #FEF9C3;
+                color: #92400E;
+                border: 2px solid #FCD34D;
+                border-radius: 12px;
+                font-size: 13px;
+                font-weight: 600;
+                text-align: left;
+                padding: 10px 16px;
+            }}
+            QPushButton:hover {{
+                background-color: #FEF08A;
+                border-color: #EAB308;
+            }}
+        """)
 
     def _refresh_text(self, first=False):
         if first:
@@ -188,27 +210,21 @@ class ChoiceCard(QPushButton):
         else:
             self.setText(f"  {self._label}.  Are you sure your answer is correct?")
 
+    def reset(self):
+        """Deselect this card back to its original state."""
+        if self._confirmed:
+            self._confirmed = False
+            self._refresh_text(first=True)
+            self._apply_default_style()
+
     def _handle_click(self):
         if not self._confirmed:
-            # First click → show confirmation prompt
+            # First click → enforce single selection, then show confirmation prompt
+            if self._on_select:
+                self._on_select(self)
             self._confirmed = True
             self._refresh_text()
-            self.setStyleSheet(f"""
-                QPushButton {{
-                    background-color: #FEF9C3;
-                    color: #92400E;
-                    border: 2px solid #FCD34D;
-                    border-radius: 12px;
-                    font-size: 13px;
-                    font-weight: 600;
-                    text-align: left;
-                    padding: 10px 16px;
-                }}
-                QPushButton:hover {{
-                    background-color: #FEF08A;
-                    border-color: #EAB308;
-                }}
-            """)
+            self._apply_selected_style()
         else:
             # Second click → trigger essay dialog
             self._on_confirm(self._is_correct, self._label, self._text)
@@ -362,6 +378,7 @@ class CalculaterApp(QMainWindow):
         self._expression   = ""
         self._true_answer  = None
         self._choices: list[dict] = []
+        self._choice_cards: list = []
         self._pending_choice_correct = False
         self._last_essay   = ""
 
@@ -843,13 +860,16 @@ class CalculaterApp(QMainWindow):
         self._idle_placeholder.hide()
         self._solved_frame.hide()
         # Clear existing cards
+        self._choice_cards = []
         while self._cards_lay.count():
             item = self._cards_lay.takeAt(0)
             if item.widget():
                 item.widget().deleteLater()
 
         for ch in self._choices:
-            card = ChoiceCard(ch["label"], ch["text"], ch["is_correct"], self._on_choice_confirmed)
+            card = ChoiceCard(ch["label"], ch["text"], ch["is_correct"], self._on_choice_confirmed,
+                              on_select=self._on_choice_selected)
+            self._choice_cards.append(card)
             self._cards_lay.addWidget(card)
 
         self._cards_lay.addStretch()
@@ -858,6 +878,12 @@ class CalculaterApp(QMainWindow):
         self._ans_title.setText("Choose the correct answer:")
         self._result_label.setText("?")
         self._state = STATE_CONFIRM   # allow clicking cards
+
+    def _on_choice_selected(self, selected_card):
+        """Enforce single selection: reset every other choice card."""
+        for card in self._choice_cards:
+            if card is not selected_card:
+                card.reset()
 
     def _on_choice_confirmed(self, is_correct: bool, label: str, text: str):
         """Called when user double-confirms a choice card."""
@@ -916,6 +942,7 @@ class CalculaterApp(QMainWindow):
         self._expression  = ""
         self._true_answer = None
         self._choices     = []
+        self._choice_cards = []
         self._last_essay  = ""
         self._update_display()
         self._result_label.setText("0")

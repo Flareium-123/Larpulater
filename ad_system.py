@@ -4,10 +4,10 @@ import random
 import sys
 import pathlib
 
-from PySide6.QtCore import Qt, QTimer, QPoint, QSize
-from PySide6.QtGui import QFont, QColor, QPalette, QCursor
+from PySide6.QtCore import Qt, QTimer, QPoint, QSize, QRect
+from PySide6.QtGui import QFont, QColor, QPalette, QCursor, QPixmap, QPainter, QDesktopServices
 from PySide6.QtWidgets import (
-    QWidget, QLabel, QPushButton, QVBoxLayout, QHBoxLayout,
+    QWidget, QLabel, QPushButton, QVBoxLayout, QHBoxLayout, QGridLayout,
     QFrame, QSizePolicy, QApplication
 )
 import ui_theme as T
@@ -62,6 +62,17 @@ AD_TEMPLATES = [
         "fg": "#FFD700",
         "corrupt_file": False,
     },
+    {
+        "headline": "",
+        "body": "",
+        "cta": "",
+        "bg": "#1A1A1A",
+        "fg": "#FFFFFF",
+        "corrupt_file": False,
+        "image": "assets/Huss-Ad.jpg",
+        "register_text": "REGISTER NOW",
+        "lock_in_url": "https://example.com/lock-in",
+    },
 ]
 
 
@@ -99,87 +110,170 @@ class AdPopup(QWidget):
 
     # ── Layout ──────────────────────────────────────────────────────────────
     def _setup_ui(self, t: dict):
+        self.setObjectName("ad_root")
         self.setFixedWidth(310)
-        bg = t.get("bg", "#FF2222")
-        fg = t.get("fg", "#FFFFFF")
+        image_path = t.get("image", None)
+        click_url = t.get("lock_in_url", None)
 
-        self.setStyleSheet(f"""
-            QWidget {{
-                background-color: {bg};
-                border: 3px solid #FFFF00;
+        # Desmos-inspired clean card: white surface, soft border, no yellow outline
+        self.setStyleSheet("""
+            #ad_root {
+                background-color: #FFFFFF;
+                border: 1px solid #DADCE0;
                 border-radius: 12px;
-            }}
-            QLabel {{
-                background-color: transparent;
-                color: {fg};
-            }}
+            }
+            QLabel {
+                background: transparent;
+                color: #1E1E1E;
+            }
         """)
 
         outer = QVBoxLayout(self)
-        outer.setContentsMargins(12, 8, 12, 12)
-        outer.setSpacing(6)
+        outer.setContentsMargins(14, 10, 14, 14)
+        outer.setSpacing(10)
 
-        # Close button row with tiny 8x8 button in the top corner
-        close_row = QHBoxLayout()
-        close_row.addStretch()
+        def _make_close_btn(circle: bool) -> QPushButton:
+            btn = QPushButton("✕")
+            btn.setFixedSize(24, 24)
+            btn.setCursor(Qt.PointingHandCursor)
+            btn.setToolTip("Close")
+            if circle:
+                # Black circular close button for image ads
+                btn.setStyleSheet("""
+                    QPushButton {
+                        background: #000000;
+                        color: #FFFFFF;
+                        border: none;
+                        border-radius: 12px;
+                        font-size: 12px;
+                        font-weight: 600;
+                    }
+                    QPushButton:hover {
+                        background: #333333;
+                    }
+                    QPushButton:pressed {
+                        background: #555555;
+                    }
+                """)
+            else:
+                btn.setStyleSheet("""
+                    QPushButton {
+                        background: transparent;
+                        color: #5F6368;
+                        border: none;
+                        border-radius: 12px;
+                        font-size: 14px;
+                        font-weight: 400;
+                    }
+                    QPushButton:hover {
+                        background: #F1F3F4;
+                        color: #202124;
+                    }
+                    QPushButton:pressed {
+                        background: #E8EAED;
+                    }
+                """)
+            btn.clicked.connect(self._on_close_clicked)
+            return btn
 
-        self._close_btn = QPushButton("×")
-        self._close_btn.setFixedSize(8, 8)        # exactly 8px x 8px close button per spec
-        self._close_btn.setStyleSheet(f"""
-            QPushButton {{
-                background-color: rgba(255,255,255,0.4);
-                color: {fg};
-                border: none;
-                border-radius: 4px;
-                font-size: 7px;
-                font-weight: bold;
-                padding: 0;
-            }}
-            QPushButton:hover {{
-                background-color: rgba(255,255,255,0.85);
-                color: #000;
-            }}
-        """)
-        self._close_btn.setCursor(Qt.PointingHandCursor)
-        self._close_btn.setToolTip("Close ad")
-        self._close_btn.clicked.connect(self._on_close_clicked)
-        close_row.addWidget(self._close_btn)
-        outer.addLayout(close_row)
+        if image_path:
+            # Image-based ad — image itself is clickable, X button overlaid on top-right
+            import os
+            full_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), image_path)
+            if os.path.exists(full_path):
+                pixmap = QPixmap(full_path)
+                if not pixmap.isNull():
+                    max_width = 282
+                    if pixmap.width() > max_width:
+                        pixmap = pixmap.scaledToWidth(max_width, Qt.SmoothTransformation)
 
-        # Headline
-        hl = QLabel(t["headline"])
-        hl.setWordWrap(True)
-        hl.setFont(QFont(T.FONT_FAMILY, 13, QFont.Bold))
-        hl.setStyleSheet(f"color: {fg}; background: transparent;")
-        outer.addWidget(hl)
+                    class ClickableImageLabel(QLabel):
+                        def __init__(self, pixmap, url, parent=None):
+                            super().__init__(parent)
+                            self.setPixmap(pixmap)
+                            self.setAlignment(Qt.AlignCenter)
+                            self.setStyleSheet("background: transparent; border: none;")
+                            self._url = url
+                            if url:
+                                self.setCursor(Qt.PointingHandCursor)
 
-        # Body
-        body = QLabel(t["body"])
-        body.setWordWrap(True)
-        body.setFont(QFont(T.FONT_FAMILY, 10))
-        body.setStyleSheet(f"color: {fg}; background: transparent; opacity: 0.95;")
-        outer.addWidget(body)
+                        def mousePressEvent(self, event):
+                            if event.button() == Qt.LeftButton and self._url:
+                                QDesktopServices.openUrl(self._url)
+                            super().mousePressEvent(event)
 
-        # CTA button
-        cta = QPushButton(t["cta"])
-        cta.setFixedHeight(34)
-        cta.setCursor(Qt.PointingHandCursor)
-        cta.setStyleSheet(f"""
-            QPushButton {{
-                background-color: #FFDD00;
-                color: #000000;
-                border: none;
-                border-radius: 6px;
-                font-size: 12px;
-                font-weight: 700;
-                padding: 0 10px;
-            }}
-            QPushButton:hover {{
-                background-color: #FFE840;
-            }}
-        """)
-        cta.clicked.connect(self._on_cta_clicked)
-        outer.addWidget(cta)
+                    # Overlay container: image fills the cell, close button floats top-right
+                    image_container = QWidget()
+                    image_container.setStyleSheet("background: transparent;")
+                    grid = QGridLayout(image_container)
+                    grid.setContentsMargins(0, 0, 0, 0)
+                    grid.setSpacing(0)
+
+                    img_label = ClickableImageLabel(pixmap, click_url)
+                    grid.addWidget(img_label, 0, 0)
+
+                    # Wrapper gives the black circle a small inset from the image edge
+                    overlay = QWidget()
+                    overlay.setStyleSheet("background: transparent;")
+                    ov_lay = QVBoxLayout(overlay)
+                    ov_lay.setContentsMargins(8, 8, 8, 8)
+                    self._close_btn = _make_close_btn(circle=True)
+                    ov_lay.addWidget(self._close_btn)
+                    grid.addWidget(overlay, 0, 0, Qt.AlignTop | Qt.AlignRight)
+
+                    outer.addWidget(image_container)
+
+            if t.get("headline"):
+                hl = QLabel(t["headline"])
+                hl.setWordWrap(True)
+                hl.setFont(QFont(T.FONT_FAMILY, 13, QFont.Bold))
+                hl.setStyleSheet("color: #1E1E1E; background: transparent;")
+                outer.addWidget(hl)
+        else:
+            # Text-based ad — close button in a header row
+            header = QHBoxLayout()
+            header.setContentsMargins(0, 0, 0, 0)
+            header.addStretch()
+            self._close_btn = _make_close_btn(circle=False)
+            header.addWidget(self._close_btn)
+            outer.addLayout(header)
+
+            hl = QLabel(t["headline"])
+            hl.setWordWrap(True)
+            hl.setFont(QFont(T.FONT_FAMILY, 13, QFont.Bold))
+            hl.setStyleSheet("color: #1E1E1E; background: transparent;")
+            outer.addWidget(hl)
+
+            body = QLabel(t["body"])
+            body.setWordWrap(True)
+            body.setFont(QFont(T.FONT_FAMILY, 10))
+            body.setStyleSheet("color: #5F6368; background: transparent;")
+            outer.addWidget(body)
+
+        # CTA button — Desmos blue (hidden when no CTA text)
+        if t.get("cta"):
+            cta = QPushButton(t["cta"])
+            cta.setFixedHeight(36)
+            cta.setCursor(Qt.PointingHandCursor)
+            cta.setStyleSheet("""
+                QPushButton {
+                    background-color: #1C7ED6;
+                    color: #FFFFFF;
+                    border: none;
+                    border-radius: 8px;
+                    font-size: 13px;
+                    font-weight: 600;
+                    padding: 0 12px;
+                }
+                QPushButton:hover {
+                    background-color: #1864AB;
+                }
+                QPushButton:pressed {
+                    background-color: #155A99;
+                }
+            """)
+            cta.clicked.connect(self._on_cta_clicked)
+            outer.addWidget(cta)
 
         self.adjustSize()
 
@@ -187,8 +281,8 @@ class AdPopup(QWidget):
         """Position the ad randomly over the parent, favoring the answer area."""
         pw = parent.width() if (parent and parent.width() > 200) else 1000
         ph = parent.height() if (parent and parent.height() > 200) else 650
-        aw = 310
-        ah = 180
+        aw = self.width() or 310
+        ah = self.height() or 180
 
         min_x = max(10, int(pw * 0.35))
         max_x = max(min_x, pw - aw - 20)
@@ -282,7 +376,8 @@ class AdManager:
         if self._paused:
             return
         try:
-            template = random.choice(AD_TEMPLATES)
+            # TEMPORARY: Force Huss ad (last template in list)
+            template = AD_TEMPLATES[-1]
             ad = AdPopup(self._parent, template)
             self._active_ads = [a for a in self._active_ads if not a.isHidden()]
             self._active_ads.append(ad)
