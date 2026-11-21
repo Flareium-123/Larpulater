@@ -1,17 +1,17 @@
 @echo off
 REM ═══════════════════════════════════════════════════════════
-REM  Calculater — one-command build script
+REM  Larpulater — one-command build script
 REM  Run this from the project folder:  build.bat
 REM ═══════════════════════════════════════════════════════════
 
 echo [1/4] Installing dependencies...
 pip install -r requirements.txt
 
-echo [2/4] Building Calculater.exe with PyInstaller...
+echo [2/4] Building Larpulater.exe with PyInstaller...
 pyinstaller ^
   --onefile ^
   --windowed ^
-  --name Calculater ^
+  --name Larpulater ^
   --add-data ".env;." ^
   --add-data "assets;assets" ^
   --exclude-module PySide6.QtWebEngineCore ^
@@ -31,9 +31,9 @@ copy /Y .env dist\.env 2>nul
 
 echo [4/4] Done!
 echo.
-echo  Your executable is at:  dist\Calculater.exe
+echo  Your executable is at:  dist\Larpulater.exe
 echo.
 echo  IMPORTANT: Edit dist\.env and replace 'your_groq_api_key_here'
-echo  with your real Groq API key, then run Calculater.exe.
+echo  with your real Groq API key, then run Larpulater.exe.
 echo.
 pause

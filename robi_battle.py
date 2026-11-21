@@ -953,11 +953,11 @@ class RobiBattleOverlay(QWidget):
 
         elif self.poke_substate == self.POKE_INTRO_2:
             self.poke_substate = self.POKE_ACTION_SELECT
-            self.poke_typewriter.set_text("What will CALCULATER do?")
+            self.poke_typewriter.set_text("What will LARPULATER do?")
 
         elif self.poke_substate == self.POKE_REJECTION_TEXT:
             self.poke_substate = self.POKE_ACTION_SELECT
-            self.poke_typewriter.set_text("What will CALCULATER do?")
+            self.poke_typewriter.set_text("What will LARPULATER do?")
 
         elif self.poke_substate == self.POKE_ROBI_FAINT:
             if self.poke_queue:
@@ -1003,13 +1003,13 @@ class RobiBattleOverlay(QWidget):
                 elif self.poke_player_hp <= 0:
                     self.poke_substate = self.POKE_PLAYER_FAINT
                     play_8bit_sound("pokemon_faint")
-                    self.poke_typewriter.set_text("CALCULATER fainted! You blacked out!", auto_advance=2.0)
+                    self.poke_typewriter.set_text("LARPULATER fainted! You blacked out!", auto_advance=2.0)
                     self.poke_queue = [
                         ("Restarting calculator...", self._trigger_player_loss)
                     ]
                 else:
                     self.poke_substate = self.POKE_ACTION_SELECT
-                    self.poke_typewriter.set_text("What will CALCULATER do?")
+                    self.poke_typewriter.set_text("What will LARPULATER do?")
 
     def _trigger_victory_screen(self):
         self.state = self.STATE_VICTORY
@@ -1053,7 +1053,7 @@ class RobiBattleOverlay(QWidget):
                     self.screen_shake = 6.0
                     self.poke_player_flash_timer = 0.4
                     play_8bit_sound("pokemon_hit")
-                self.poke_typewriter.set_text("CALCULATER is confused!", auto_advance=1.3)
+                self.poke_typewriter.set_text("LARPULATER is confused!", auto_advance=1.3)
                 self.poke_queue.append(("It hurt itself in its confusion (-10 HP)!", _hurt_self))
                 # Skip attack and go straight to Robi's turn if player survived
                 if self.poke_player_hp - 10 > 0:
@@ -1073,7 +1073,7 @@ class RobiBattleOverlay(QWidget):
                 play_8bit_sound("pokemon_crit" if mult > 1.0 else "pokemon_hit")
                 self.poke_robi_ego_lowered = False
 
-            self.poke_typewriter.set_text(f"CALCULATER used DIVIDE BY ZERO!\nDealt {dmg} CHAOS damage!", auto_advance=1.6)
+            self.poke_typewriter.set_text(f"LARPULATER used DIVIDE BY ZERO!\nDealt {dmg} CHAOS damage!", auto_advance=1.6)
             self.poke_queue.append(("", _apply_div))
 
             if recoil:
@@ -1082,7 +1082,7 @@ class RobiBattleOverlay(QWidget):
                     self.screen_shake = 6.0
                     self.poke_player_flash_timer = 0.4
                     play_8bit_sound("hurt")
-                self.poke_queue.append(("CALCULATER divided by zero!\nIt hurt itself in a stack overflow (-15 HP)!", _apply_recoil))
+                self.poke_queue.append(("LARPULATER divided by zero!\nIt hurt itself in a stack overflow (-15 HP)!", _apply_recoil))
 
         elif move["name"] == "CLEAR ENTRY":
             dmg = int(20 * mult)
@@ -1093,7 +1093,7 @@ class RobiBattleOverlay(QWidget):
                 play_8bit_sound("pokemon_hit")
                 self.poke_robi_ego_lowered = False
 
-            self.poke_typewriter.set_text(f"CALCULATER used CLEAR ENTRY (CE)!\nDealt {dmg} MATH damage!", auto_advance=1.6)
+            self.poke_typewriter.set_text(f"LARPULATER used CLEAR ENTRY (CE)!\nDealt {dmg} MATH damage!", auto_advance=1.6)
             self.poke_queue.append(("", _apply_ce))
 
         elif move["name"] == "PEMDAS SLAM":
@@ -1108,9 +1108,9 @@ class RobiBattleOverlay(QWidget):
                 self.poke_robi_ego_lowered = False
 
             if is_crit:
-                msg = f"CALCULATER followed order of operations!\nA critical hit dealing {dmg} damage!"
+                msg = f"LARPULATER followed order of operations!\nA critical hit dealing {dmg} damage!"
             else:
-                msg = f"CALCULATER used PEMDAS SLAM!\nDealt {dmg} LOGIC damage!"
+                msg = f"LARPULATER used PEMDAS SLAM!\nDealt {dmg} LOGIC damage!"
             self.poke_typewriter.set_text(msg, auto_advance=1.6)
             self.poke_queue.append(("", _apply_pemdas))
 
@@ -1119,7 +1119,7 @@ class RobiBattleOverlay(QWidget):
                 self.poke_robi_ego_lowered = True
                 self.poke_player_confused_turns = 0
                 play_8bit_sound("pokemon_stat")
-            self.poke_typewriter.set_text("CALCULATER used FACT CHECK!\nRobi's Ego plummeted! (Next hit: +50% DMG)\nConfusion cured!", auto_advance=1.8)
+            self.poke_typewriter.set_text("LARPULATER used FACT CHECK!\nRobi's Ego plummeted! (Next hit: +50% DMG)\nConfusion cured!", auto_advance=1.8)
             self.poke_queue.append(("", _apply_fact))
 
         self.poke_last_player_move = move["name"]
@@ -1142,11 +1142,11 @@ class RobiBattleOverlay(QWidget):
             def _apply_gaslight():
                 self.poke_player_confused_turns = random.randint(2, 3)
                 play_8bit_sound("pokemon_stat")
-            self.poke_queue.append(("ROBI used GASLIGHT!\n\"Your math is a delusion!\" CALCULATER became confused!", _apply_gaslight))
+            self.poke_queue.append(("ROBI used GASLIGHT!\n\"Your math is a delusion!\" LARPULATER became confused!", _apply_gaslight))
         else:
             attacks = [
-                ("Move The Decimal", 20, "ROBI moved the decimal point!\nCALCULATER lost value (-20 HP)!"),
-                ("Redact Steps",     25, "ROBI redacted CALCULATER's steps!\n\"Show your work!\" Robi sneered (-25 HP)!"),
+                ("Move The Decimal", 20, "ROBI moved the decimal point!\nLARPULATER lost value (-20 HP)!"),
+                ("Redact Steps",     25, "ROBI redacted LARPULATER's steps!\n\"Show your work!\" Robi sneered (-25 HP)!"),
                 ("Delusion Blast",   30, "ROBI unleashed DELUSION BLAST!\nPure unhinged chaos (-30 HP)!"),
             ]
             r_name, r_dmg, r_msg = random.choice(attacks)
@@ -1217,7 +1217,7 @@ class RobiBattleOverlay(QWidget):
         if k == Qt.Key_Escape:
             if self.state == self.STATE_POKEMON_BATTLE and self.poke_substate == self.POKE_MOVE_SELECT:
                 self.poke_substate = self.POKE_ACTION_SELECT
-                self.poke_typewriter.set_text("What will CALCULATER do?")
+                self.poke_typewriter.set_text("What will LARPULATER do?")
                 return
             self._finish(None)
             return
@@ -1270,7 +1270,7 @@ class RobiBattleOverlay(QWidget):
                     play_8bit_sound("select")
                 elif k in (Qt.Key_Backspace, Qt.Key_X):
                     self.poke_substate = self.POKE_ACTION_SELECT
-                    self.poke_typewriter.set_text("What will CALCULATER do?")
+                    self.poke_typewriter.set_text("What will LARPULATER do?")
                 elif k in (Qt.Key_Space, Qt.Key_Return, Qt.Key_Enter, Qt.Key_Z):
                     self._on_pokemon_move_confirm()
 
@@ -1778,7 +1778,7 @@ class RobiBattleOverlay(QWidget):
         # Name & Level
         painter.setPen(QColor(17, 24, 39))
         painter.setFont(QFont("Segoe UI", 11, QFont.Bold))
-        painter.drawText(QPointF(x + 14, y + 24), "CALCULATER")
+        painter.drawText(QPointF(x + 14, y + 24), "LARPULATER")
 
         painter.setFont(QFont("Consolas", 10, QFont.Bold))
         painter.setPen(QColor(37, 99, 235))

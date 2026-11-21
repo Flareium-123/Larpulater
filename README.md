@@ -1,6 +1,6 @@
-# Calculater 🧮
+# Larpulater 🧮
 
-> *"We tried our best." — Calculater Corp, Est. 1987*
+> *"We tried our best." — Larpulater Corp, Est. 1987*
 
 A single-file retro scientific calculator web app with maximum chaos energy.
 

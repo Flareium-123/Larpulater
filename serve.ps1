@@ -1,9 +1,9 @@
 ﻿Add-Type -AssemblyName System.Net
-$root = "C:\Users\Flareium\.gemini\antigravity\scratch\calculater"
+$root = "C:\Users\Flareium\.gemini\antigravity\scratch\larpulater"
 $listener = New-Object System.Net.HttpListener
 $listener.Prefixes.Add("http://localhost:8787/")
 $listener.Start()
-"Server started on http://localhost:8787/" | Out-File "C:\Users\Flareium\.gemini\antigravity\scratch\calculater\server.log" -Append
+"Server started on http://localhost:8787/" | Out-File "C:\Users\Flareium\.gemini\antigravity\scratch\larpulater\server.log" -Append
 while ($true) {
   try {
     $ctx = $listener.GetContext()

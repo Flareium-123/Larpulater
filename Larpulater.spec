@@ -24,7 +24,7 @@ exe = EXE(
     a.binaries,
     a.datas,
     [],
-    name='Calculater',
+    name='Larpulater',
     debug=False,
     bootloader_ignore_signals=False,
     strip=False,

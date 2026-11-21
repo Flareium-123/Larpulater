@@ -1,4 +1,4 @@
-# main.py - Calculater: Desmos-inspired hostile calculator
+# main.py - Larpulater: Desmos-inspired hostile calculator
 #
 # State machine:  IDLE → CHOICES → CONFIRM → ESSAY → SOLVED / WIPED
 #
@@ -76,7 +76,7 @@ KEYPAD_GRID = [
 class CalcButton(QPushButton):
     """A single calculator key with sabotage mechanics."""
 
-    def __init__(self, label: str, value: str, key_class: str, app: "CalculaterApp"):
+    def __init__(self, label: str, value: str, key_class: str, app: "LarpulaterApp"):
         super().__init__(label)
         self._value     = value
         self._key_class = key_class
@@ -379,12 +379,12 @@ class EssayDialog(QDialog):
         return self._essay_edit.toPlainText().strip()
 
 
-class CalculaterApp(QMainWindow):
+class LarpulaterApp(QMainWindow):
     """Main application window."""
 
     def __init__(self):
         super().__init__()
-        self.setWindowTitle("Calculater")
+        self.setWindowTitle("Larpulater")
         self.setMinimumSize(460, 620)
         self.resize(480, 680)
 
@@ -434,7 +434,7 @@ class CalculaterApp(QMainWindow):
 
         # App title
         title_row = QHBoxLayout()
-        app_title = QLabel("🧮  Calculater")
+        app_title = QLabel("🧮  Larpulater")
         app_title.setFont(QFont(T.FONT_FAMILY, 16, QFont.Bold))
         app_title.setStyleSheet(f"color: {T.ACCENT_PRIMARY};")
         title_row.addWidget(app_title)
@@ -1069,8 +1069,8 @@ def main():
     log_debug("1. main() called")
     app = QApplication(sys.argv)
     log_debug("2. QApplication created")
-    app.setApplicationName("Calculater")
-    app.setApplicationDisplayName("Calculater")
+    app.setApplicationName("Larpulater")
+    app.setApplicationDisplayName("Larpulater")
 
     palette = QPalette()
     palette.setColor(QPalette.Window,          QColor(T.BG_MAIN))
@@ -1086,14 +1086,14 @@ def main():
     log_debug("3. Palette set")
 
     try:
-        win = CalculaterApp()
-        log_debug(f"4. CalculaterApp instantiated: {win}")
+        win = LarpulaterApp()
+        log_debug(f"4. LarpulaterApp instantiated: {win}")
         win.show()
         win.raise_()
         win.activateWindow()
         log_debug(f"5. win.show() called, isVisible={win.isVisible()}, winId={int(win.winId())}")
     except Exception as e:
-        log_debug(f"ERROR in CalculaterApp: {e}")
+        log_debug(f"ERROR in LarpulaterApp: {e}")
         import traceback
         log_debug(traceback.format_exc())
 
