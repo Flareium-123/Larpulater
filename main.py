@@ -755,50 +755,27 @@ class CalculaterApp(QMainWindow):
                 row_btns.append(btn)
             self._keypad_buttons.append(row_btns)
 
-    def swap_keypad_pair(self, r1: int, c1: int, r2: int, c2: int):
-        """
-        Physically swap the positions, labels, and click bindings of two buttons
-        directly on the calculator keypad grid.
-        """
-        if (r1, c1) == (r2, c2):
-            return
-        btn1 = self._keypad_buttons[r1][c1]
-        btn2 = self._keypad_buttons[r2][c2]
-
-        # Remove both from grid layout
-        self._keypad_layout.removeWidget(btn1)
-        self._keypad_layout.removeWidget(btn2)
-
-        # Place at swapped grid positions
-        self._keypad_layout.addWidget(btn1, r2, c2)
-        self._keypad_layout.addWidget(btn2, r1, c1)
-
-        btn1.show()
-        btn2.show()
-
-        # Update 2D matrix so self._keypad_buttons[r][c] matches physical screen layout
-        self._keypad_buttons[r1][c1] = btn2
-        self._keypad_buttons[r2][c2] = btn1
-
     def scramble_keypad(self):
-        """
-        True physical keypad button swapping (1% sabotage).
-        Physically swaps button positions, labels, and click bindings directly
-        on the calculator keypad grid, updating the live UI immediately.
-        """
-        rows = len(self._keypad_buttons)
-        cols = len(self._keypad_buttons[0])
-        coords = [(r, c) for r in range(rows) for c in range(cols)]
+        """Randomly shuffle all button positions in the keypad grid."""
+        # Collect all buttons
+        flat = [btn for row in self._keypad_buttons for btn in row]
+        positions = [(r, c) for r in range(len(KEYPAD_GRID)) for c in range(len(KEYPAD_GRID[r]))]
 
-        # Swap multiple random pairs across the grid (e.g. '1' with '4', 'sin' with '7', etc.)
-        num_swaps = random.randint(8, 14)
-        for _ in range(num_swaps):
-            c1, c2 = random.sample(coords, 2)
-            self.swap_keypad_pair(c1[0], c1[1], c2[0], c2[1])
+        # Remove all from grid without deleting
+        for btn in flat:
+            self._keypad_layout.removeWidget(btn)
 
-        self._keypad_layout.activate()
-        self._keypad_layout.update()
-        QApplication.processEvents()
+        random.shuffle(positions)
+        self._keypad_buttons = []
+        pos_iter = iter(positions)
+        for row_def in KEYPAD_GRID:
+            row_btns = []
+            for _ in row_def:
+                r, c = next(pos_iter)
+                btn = flat.pop(0)
+                self._keypad_layout.addWidget(btn, r, c)
+                row_btns.append(btn)
+            self._keypad_buttons.append(row_btns)
 
     def get_random_adjacent_value(self, btn: "CalcButton") -> str:
         """Find the value of a random adjacent button for misclick sabotage."""
