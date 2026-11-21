@@ -13,6 +13,7 @@ pyinstaller ^
   --windowed ^
   --name Calculater ^
   --add-data ".env;." ^
+  --add-data "assets;assets" ^
   --exclude-module PySide6.QtWebEngineCore ^
   --exclude-module PySide6.QtWebEngineWidgets ^
   --exclude-module PySide6.QtWebEngineQuick ^

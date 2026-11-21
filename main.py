@@ -29,6 +29,7 @@ from calculator_logic import safe_eval, format_number, build_choices
 from ad_system import AdManager
 from robi_chat import RobiChatWidget
 from paywall import PaywallModal
+from robi_battle import RobiBattleOverlay
 
 # ── State constants ───────────────────────────────────────────────────────────
 STATE_IDLE    = "IDLE"
@@ -706,6 +707,7 @@ class CalculaterApp(QMainWindow):
         self._robi_widget.essay_rejected.connect(self._on_essay_rejected)
         self._robi_widget.essay_accepted.connect(self._on_essay_accepted)
         self._robi_widget.request_resubmit.connect(self._reopen_essay)
+        self._robi_widget.request_battle.connect(self._start_battle)
         self._robi_widget.hide()
         robi_outer_lay.addWidget(self._robi_widget, 1)
 
@@ -959,6 +961,47 @@ class CalculaterApp(QMainWindow):
             os.environ["GROQ_API_KEY"] = key.strip()
             self._robi_widget._init_groq()
             QMessageBox.information(self, "Saved", "API key saved! Robi is now fully powered.")
+
+    def _start_battle(self):
+        """Initiate the Undertale-style boss fight against Robi."""
+        if hasattr(self, "_battle_overlay") and self._battle_overlay and self._battle_overlay.isVisible():
+            return
+        # 1. Suspend ad manager & hide visible ads
+        self.ad_manager.pause()
+        # 2. Inform Robi chat
+        self._robi_widget.set_battle_active(True)
+        # 3. Create battle overlay covering the full window
+        self._battle_overlay = RobiBattleOverlay(self)
+        self._battle_overlay.setGeometry(self.rect())
+        self._battle_overlay.battle_won.connect(self._on_battle_won)
+        self._battle_overlay.battle_lost.connect(self._on_battle_lost)
+        self._battle_overlay.battle_ended.connect(self._on_battle_ended)
+        self._battle_overlay.show()
+        self._battle_overlay.raise_()
+        self._battle_overlay.setFocus()
+
+    def _on_battle_won(self):
+        """Victory: Robi admits defeat and drops the secret phrase."""
+        self._robi_widget.post_battle_victory()
+        self._robi_widget.show()
+        self.ad_manager.resume()
+
+    def _on_battle_lost(self):
+        """Defeat: Robi mocks the player."""
+        self._robi_widget.post_battle_defeat()
+        self._robi_widget.show()
+        self.ad_manager.resume()
+
+    def _on_battle_ended(self):
+        """Clean up when battle finishes."""
+        self._robi_widget.set_battle_active(False)
+        self.ad_manager.resume()
+        self._battle_overlay = None
+
+    def resizeEvent(self, event):
+        super().resizeEvent(event)
+        if hasattr(self, "_battle_overlay") and self._battle_overlay and self._battle_overlay.isVisible():
+            self._battle_overlay.setGeometry(self.rect())
 
 
 # ══════════════════════════════════════════════════════════════════════════════

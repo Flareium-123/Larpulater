@@ -218,7 +218,7 @@ class AdPopup(QWidget):
 class AdManager:
     """
     Manages timed (10-20s) and click-triggered ad spawning.
-    Guarantees timer never dies.
+    Guarantees timer never dies. Supports pausing during boss battles.
     """
 
     def __init__(self, parent: QWidget):
@@ -226,6 +226,7 @@ class AdManager:
         self._timer = QTimer(parent)
         self._timer.timeout.connect(self._spawn_timer_ad)
         self._active_ads: list[AdPopup] = []
+        self._paused = False
 
     def start(self):
         self._schedule_next_timer()
@@ -233,25 +234,53 @@ class AdManager:
     def stop(self):
         self._timer.stop()
 
+    def pause(self):
+        """Suspend all ad timers and hide active overlays for battle mode."""
+        self._paused = True
+        self._timer.stop()
+        for a in self._active_ads:
+            try:
+                if not a.isHidden():
+                    a.hide()
+            except Exception:
+                pass
+
+    def resume(self):
+        """Resume normal ad spawning behavior."""
+        self._paused = False
+        self._schedule_next_timer()
+
+    def is_paused(self) -> bool:
+        return self._paused
+
     def maybe_trigger_click_ad(self):
         """10% probability on keypad click."""
+        if self._paused:
+            return
         if random.random() < 0.10:
             self._spawn_ad()
 
     def _schedule_next_timer(self):
+        if self._paused:
+            return
         interval_ms = random.randint(10_000, 20_000)
         self._timer.setSingleShot(True)
         self._timer.start(interval_ms)
 
     def _spawn_timer_ad(self):
+        if self._paused:
+            return
         try:
             self._spawn_ad()
         except Exception:
             pass
         finally:
-            self._schedule_next_timer()
+            if not self._paused:
+                self._schedule_next_timer()
 
     def _spawn_ad(self):
+        if self._paused:
+            return
         try:
             template = random.choice(AD_TEMPLATES)
             ad = AdPopup(self._parent, template)

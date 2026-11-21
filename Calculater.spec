@@ -1,11 +1,13 @@
 # -*- mode: python ; coding: utf-8 -*-
 
 
+datas = [('.env', '.'), ('assets', 'assets')]
+
 a = Analysis(
     ['main.py'],
     pathex=[],
     binaries=[],
-    datas=[('.env', '.')],
+    datas=datas,
     hiddenimports=[],
     hookspath=[],
     hooksconfig={},

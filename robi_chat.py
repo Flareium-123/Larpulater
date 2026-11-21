@@ -96,6 +96,7 @@ class RobiChatWidget(QWidget):
     essay_rejected   = Signal(str)
     essay_accepted   = Signal()
     request_resubmit = Signal()
+    request_battle   = Signal()
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -108,6 +109,7 @@ class RobiChatWidget(QWidget):
         self._is_debating = False         # True when user is arguing an essay rejection
         self._debate_turns = 0            # counts debate turns to progress hints
         self._last_essay = ""
+        self._battle_active = False
 
         self._setup_ui()
         self._init_groq()
@@ -135,7 +137,9 @@ class RobiChatWidget(QWidget):
         return super().eventFilter(watched, event)
 
     def _handle_chat_click(self):
-        """The first click anywhere inside Robi opens an ad. Subsequent clicks have 20% chance."""
+        """The first click anywhere inside Robi opens an ad. Subsequent clicks have 20% chance. Suspended in battle."""
+        if self._battle_active:
+            return
         if self._first_click:
             self._first_click = False
             self._spawn_ad()
@@ -170,6 +174,26 @@ class RobiChatWidget(QWidget):
         bot_lbl.setStyleSheet("color: white; background: transparent;")
         h_lay.addWidget(bot_lbl)
         h_lay.addStretch()
+
+        self._battle_btn = QPushButton("⚔️ Battle Robi")
+        self._battle_btn.setCursor(Qt.PointingHandCursor)
+        self._battle_btn.setToolTip("Challenge Robi to an Undertale-style boss fight!")
+        self._battle_btn.setStyleSheet("""
+            QPushButton {
+                background-color: #DC2626;
+                color: white;
+                border: 1px solid #FCA5A5;
+                border-radius: 6px;
+                font-size: 11px;
+                font-weight: 700;
+                padding: 3px 8px;
+            }
+            QPushButton:hover {
+                background-color: #B91C1C;
+            }
+        """)
+        self._battle_btn.clicked.connect(self.request_battle.emit)
+        h_lay.addWidget(self._battle_btn)
 
         self._status_badge = QLabel("● Online")
         self._status_badge.setFont(QFont(T.FONT_FAMILY, 10, QFont.Bold))
@@ -317,6 +341,33 @@ class RobiChatWidget(QWidget):
     def focus_input(self):
         """Focus the chat input field for quick debate."""
         self._input.setFocus()
+
+    def set_battle_active(self, active: bool):
+        self._battle_active = active
+        if hasattr(self, "_battle_btn"):
+            self._battle_btn.setEnabled(not active)
+
+    def post_battle_victory(self):
+        self._battle_active = False
+        if hasattr(self, "_battle_btn"):
+            self._battle_btn.setEnabled(True)
+        victory_msg = (
+            "💥 <b>UGH... IMPOSSIBLE! You actually depleted all my HP?! 😭</b><br><br>"
+            "...Fine! A deal's a deal. Here is the exact phrase you need to pass the essay check:<br>"
+            "<span style='color:#2563EB; font-weight:bold; font-size:14px; background:#DBEAFE; padding:3px 6px; border-radius:4px;'>because i am stupid</span><br><br>"
+            "Put that in your essay and leave me alone!"
+        )
+        self._append_robi(victory_msg)
+
+    def post_battle_defeat(self):
+        self._battle_active = False
+        if hasattr(self, "_battle_btn"):
+            self._battle_btn.setEnabled(True)
+        defeat_msg = (
+            "💀 <b>LOL! Did you really think a fragile pocket calculator could defeat me?!</b><br><br>"
+            "Your HP hit zero! Go back to elementary addition and try again when you learn how to dodge."
+        )
+        self._append_robi(defeat_msg)
 
     # ── Internal Chat Logic ───────────────────────────────────────────────────
     def _spawn_ad(self):
