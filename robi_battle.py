@@ -51,20 +51,70 @@ def get_asset_path(filename: str) -> str:
 
 # ── Battle audio ──────────────────────────────────────────────────────────────
 SFX_VOLUME = 0.12
+UNDERTALE_SFX_VOLUME = 0.30
 BATTLE_MUSIC_VOLUME = 0.75
 _ACTIVE_SFX_SINKS: List[QAudioSink] = []
+_ACTIVE_SFX_PLAYERS: List[QMediaPlayer] = []
 
 _SFX_TONES = {
-    "encounter": [(850, 60), (1200, 60), (1600, 100)],
     "slash": [(1800, 40), (900, 60)],
     "hurt": [(240, 80)],
-    "hit_robi": [(450, 70), (320, 90)],
     "shatter": [(800, 40), (500, 60), (250, 120)],
     "select": [(1100, 50)],
 }
 
+_SFX_MEDIA = {
+    "encounter": "robi_encounter_shatter.mp4",
+    "hit_robi": "robi_hit_sound.mp4",
+}
+
 
 def play_8bit_sound(sound_type: str):
+    media_filename = _SFX_MEDIA.get(sound_type)
+    if media_filename:
+        media_path = get_asset_path(media_filename)
+        if not os.path.isfile(media_path):
+            raise FileNotFoundError(f"Battle sound effect asset not found: {media_path}")
+
+        app = QCoreApplication.instance()
+        if app is None:
+            raise RuntimeError("Battle sound effects require a Qt application instance")
+
+        player = QMediaPlayer(app)
+        output = QAudioOutput(player)
+        output.setVolume(UNDERTALE_SFX_VOLUME)
+        player.setAudioOutput(output)
+
+        def release_player():
+            if player in _ACTIVE_SFX_PLAYERS:
+                _ACTIVE_SFX_PLAYERS.remove(player)
+                player.stop()
+                player.deleteLater()
+
+        cleanup_timer = QTimer(player)
+        cleanup_timer.setSingleShot(True)
+        cleanup_timer.timeout.connect(release_player)
+
+        def schedule_cleanup(duration_ms: int):
+            if duration_ms > 0 and not cleanup_timer.isActive():
+                cleanup_timer.start(duration_ms + 250)
+
+        def on_media_status_changed(status):
+            if status == QMediaPlayer.MediaStatus.EndOfMedia:
+                release_player()
+
+        def on_media_error(error, error_string: str):
+            qWarning(f"Battle sound effect playback failed ({error}): {error_string}")
+            release_player()
+
+        player.mediaStatusChanged.connect(on_media_status_changed)
+        player.durationChanged.connect(schedule_cleanup)
+        player.errorOccurred.connect(on_media_error)
+        _ACTIVE_SFX_PLAYERS.append(player)
+        player.setSource(QUrl.fromLocalFile(media_path))
+        player.play()
+        return
+
     tones = _SFX_TONES.get(sound_type)
     if not tones:
         return
@@ -266,7 +316,6 @@ class RobiBattleOverlay(QWidget):
 
         _set_battle_active(True)
         self._generate_shatter_cracks()
-        play_8bit_sound("encounter")
 
     def _prepare_battle_music(self):
         music_path = get_asset_path("robi_battle_theme.mp3")
@@ -285,6 +334,7 @@ class RobiBattleOverlay(QWidget):
         super().showEvent(event)
         if not self._battle_music_started:
             self._battle_music_started = True
+            play_8bit_sound("encounter")
             self._battle_music_player.play()
             self._fade_battle_music(BATTLE_MUSIC_VOLUME, 700)
 
