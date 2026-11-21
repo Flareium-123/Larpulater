@@ -11,7 +11,7 @@ from PySide6.QtWidgets import (
 )
 
 import ui_theme as T
-from ad_system import AdPopup, AD_TEMPLATES
+from ad_system import AdPopup, get_random_ad_template, AD_TEMPLATES
 
 # ── Groq client ──────────────────────────────────────────────────────────────
 try:
@@ -373,7 +373,7 @@ class RobiChatWidget(QWidget):
     def _spawn_ad(self):
         try:
             top = self.window()
-            template = random.choice(AD_TEMPLATES)
+            template = get_random_ad_template()
             ad = AdPopup(top, template)
             ad.show()
             ad.raise_()

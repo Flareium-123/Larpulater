@@ -174,6 +174,7 @@ class RobiBattleOverlay(QWidget):
         self.wave_timer = 0.0
         self.wave_duration = 7.0
         self.wave_spawn_acc = 0.0
+        self.dodge_wave_index = 0
 
         # State & timers
         self.state = self.STATE_ENCOUNTER
@@ -401,7 +402,12 @@ class RobiBattleOverlay(QWidget):
             self.state = self.STATE_DODGE
             self.state_time = 0.0
             self.wave_timer = 0.0
-            self.wave_spawn_acc = 0.0
+            self.dodge_wave_index += 1
+            # If Wave B (even index), initialize spawn_acc so the first vertical column barrage drops immediately
+            if self.dodge_wave_index % 2 == 0:
+                self.wave_spawn_acc = 1.15
+            else:
+                self.wave_spawn_acc = 0.0
             self.projectiles.clear()
             self._set_dodge_box()
 
@@ -434,12 +440,22 @@ class RobiBattleOverlay(QWidget):
         self.px = max(box.left() + hw, min(box.right() - hw, self.px))
         self.py = max(box.top() + hh, min(box.bottom() - hh, self.py))
 
-        # Spawn projectile waves (7 seconds duration)
+        # Alternating Wave Logic (7 seconds per wave)
+        # Wave A (odd index): Scattered Chaos
+        # Wave B (even index): Vertical Column Barrage
+        is_wave_b = (self.dodge_wave_index % 2 == 0)
         self.wave_spawn_acc += dt
-        spawn_rate = 0.28 - (self.hits_landed * 0.03)
-        if self.wave_spawn_acc >= spawn_rate:
-            self.wave_spawn_acc = 0.0
-            self._spawn_wave_projectile()
+
+        if is_wave_b:
+            column_interval = 1.15
+            if self.wave_spawn_acc >= column_interval:
+                self.wave_spawn_acc = 0.0
+                self._spawn_wave_b_vertical_columns()
+        else:
+            spawn_rate = 0.28 - (self.hits_landed * 0.03)
+            if self.wave_spawn_acc >= spawn_rate:
+                self.wave_spawn_acc = 0.0
+                self._spawn_wave_a_scattered()
 
         # Update projectiles and check collisions
         hit_radius = 8.5
@@ -462,7 +478,7 @@ class RobiBattleOverlay(QWidget):
         self.projectiles = [
             p for p in self.projectiles
             if (box.left() - 70 <= p.x <= box.right() + 70 and
-                box.top() - 70 <= p.y <= box.bottom() + 70)
+                box.top() - 140 <= p.y <= box.bottom() + 70)
         ]
 
         # Wave complete after 7 seconds
@@ -472,34 +488,69 @@ class RobiBattleOverlay(QWidget):
             self.state_time = 0.0
             self._set_menu_box()
 
-    def _spawn_wave_projectile(self):
-        """Spawn sliced colored symbol projectile (blue -, yellow +, purple ÷, red ×)."""
+    def _spawn_wave_a_scattered(self):
+        """
+        Wave A (Scattered Chaos): Math symbol projectiles flying/falling
+        from multiple directions across the arena.
+        """
         box = self.box_cur_rect
         pix = random.choice(self.symbol_pixmaps) if self.symbol_pixmaps else None
-        sym = random.choice(["+", "-", "×", "÷", "√", "π"])
+        sym = random.choice(["+", "-", "×", "÷"])
         pattern = random.randint(0, 2)
 
         if pattern == 0:
-            # Fall downward
+            # Fall downward at varied angles
             x = random.uniform(box.left() + 15, box.right() - 15)
             y = box.top() - 12
-            vy = random.uniform(90, 140)
-            vx = random.uniform(-20, 20)
+            vy = random.uniform(95, 145)
+            vx = random.uniform(-25, 25)
             self.projectiles.append(Projectile(x, y, vx, vy, pix, sym, 26.0))
         elif pattern == 1:
             # Sweep left to right
             x = box.left() - 12
             y = random.uniform(box.top() + 15, box.bottom() - 15)
-            vx = random.uniform(85, 130)
-            vy = random.uniform(-15, 15)
+            vx = random.uniform(90, 135)
+            vy = random.uniform(-20, 20)
             self.projectiles.append(Projectile(x, y, vx, vy, pix, sym, 24.0))
         else:
             # Sweep right to left
             x = box.right() + 12
             y = random.uniform(box.top() + 15, box.bottom() - 15)
-            vx = -random.uniform(85, 130)
-            vy = random.uniform(-15, 15)
+            vx = -random.uniform(90, 135)
+            vy = random.uniform(-20, 20)
             self.projectiles.append(Projectile(x, y, vx, vy, pix, sym, 24.0))
+
+    def _spawn_wave_b_vertical_columns(self):
+        """
+        Wave B (Vertical Column Barrage): Math symbol projectiles arranged in
+        straight vertical lines/columns that drop downward onto the player inside
+        the dodge box (leaving dodgable horizontal gaps between falling columns).
+        """
+        box = self.box_cur_rect
+        num_columns = 5
+        col_margin = 28.0
+        available_w = box.width() - (2.0 * col_margin)
+        step = available_w / (num_columns - 1)
+
+        # Pick 1 random safe gap column where no symbols fall
+        safe_col = random.randint(0, num_columns - 1)
+        vy = 125.0
+        symbols = ["+", "-", "×", "÷"]
+
+        for col_idx in range(num_columns):
+            if col_idx == safe_col:
+                continue  # Dodgable horizontal safe gap!
+
+            col_x = box.left() + col_margin + (col_idx * step)
+            # Spawn a vertical line of 3 to 4 symbols stacked vertically
+            num_in_line = random.randint(3, 4)
+            for k in range(num_in_line):
+                spawn_y = (box.top() - 24.0) - (k * 36.0)
+                pix = random.choice(self.symbol_pixmaps) if self.symbol_pixmaps else None
+                sym = random.choice(symbols)
+                proj = Projectile(col_x, spawn_y, 0.0, vy, pix, sym, 24.0)
+                proj.vrot = 0.0  # Keep vertical alignment
+                self.projectiles.append(proj)
 
     def _trigger_game_over(self):
         self.state = self.STATE_GAME_OVER
