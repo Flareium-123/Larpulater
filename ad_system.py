@@ -1,4 +1,4 @@
-# ad_system.py - Hostile popup ad system
+# ad_system.py - Hostile popup ad system with dynamic asset scanning
 import os
 import random
 import sys
@@ -12,68 +12,115 @@ from PySide6.QtWidgets import (
 )
 import ui_theme as T
 
-# ── Ad copy templates ─────────────────────────────────────────────────────────
-AD_TEMPLATES = [
+# ── Asset path resolution & dynamic ad image scanning ─────────────────────────
+EXCLUDED_SPRITES = {
+    "angry robi", "defeated robi", "robi attack symbols",
+    "shash1", "slash2", "slash3", "slash4", "slash 5", "player_calc",
+    "robi logo circle", "robi logo square", "robi logo", "robi icon"
+}
+
+
+def resolve_asset_dir() -> str:
+    """Find the assets directory supporting both local dev and PyInstaller sys._MEIPASS."""
+    base_dir = getattr(sys, "_MEIPASS", os.path.dirname(os.path.abspath(__file__)))
+    candidates = [
+        os.path.join(base_dir, "assets"),
+        os.path.join(os.path.dirname(os.path.abspath(__file__)), "assets"),
+        os.path.join("assets"),
+    ]
+    for c in candidates:
+        if os.path.exists(c) and os.path.isdir(c):
+            return os.path.abspath(c)
+    return candidates[0]
+
+
+_DEFAULT_FALLBACK_TEMPLATES = [
     {
-        "headline": "YOU WON A FREE iPhone 15 Pro!!!",
+        "headline": "🎉 YOU WON A FREE iPhone 15 Pro!!!",
         "body": "Claim your prize NOW before it expires in 00:03!",
         "cta": "CLAIM FREE PRIZE »",
         "bg": "#FF2222",
         "fg": "#FFFFFF",
         "corrupt_file": False,
+        "image": None,
     },
     {
-        "headline": "Your PC is INFECTED with 47 viruses!",
+        "headline": "⚠️ Your PC is INFECTED with 47 viruses!",
         "body": "Download our FREE antivirus scanner to remove all threats immediately.",
         "cta": "Download FREE Fix →",
         "bg": "#FF6B00",
         "fg": "#FFFFFF",
-        "corrupt_file": True,   # triggers the 0-KB readme download
-    },
-    {
-        "headline": "MATH GENIUS DETECTED!",
-        "body": "Local educators HATE this one trick. Solve any equation instantly!",
-        "cta": "Learn THE SECRET →",
-        "bg": "#7B00FF",
-        "fg": "#FFFFFF",
-        "corrupt_file": False,
-    },
-    {
-        "headline": "Make $8,500/week from home!",
-        "body": "Thousands of calculater users earn passive income. Zero effort required!",
-        "cta": "START EARNING NOW »",
-        "bg": "#006600",
-        "fg": "#FFFF00",
-        "corrupt_file": False,
-    },
-    {
-        "headline": "HOT SINGLES want to do your math!",
-        "body": "Local mathematicians in your area are waiting to explain their solutions.",
-        "cta": "MEET THEM NOW »",
-        "bg": "#CC0055",
-        "fg": "#FFFFFF",
-        "corrupt_file": False,
-    },
-    {
-        "headline": "LIMITED TIME: Calculater PRO UNLOCKED",
-        "body": "Someone nearby just unlocked PRO access for FREE. Grab your copy before it's gone!",
-        "cta": "Get PRO FREE !!!",
-        "bg": "#0033AA",
-        "fg": "#FFD700",
-        "corrupt_file": False,
-    },
-    {
-        "headline": "",
-        "body": "",
-        "cta": "",
-        "bg": "#1A1A1A",
-        "fg": "#FFFFFF",
-        "corrupt_file": False,
-        "image": "assets/Huss-Ad.jpg",
-        "register_text": "REGISTER NOW",
-        "lock_in_url": "https://example.com/lock-in",
+        "corrupt_file": True,
+        "image": None,
     },
 ]
+
+
+def scan_ad_templates() -> list[dict]:
+    """
+    Scan assets/ for all ad image files (*ad*.png, *ad*.jpg, *ad*.gif, etc.),
+    excluding Robi battle sprites and Robi logos. Identifies the corrupt-file variant.
+    """
+    asset_dir = resolve_asset_dir()
+    templates = []
+
+    if not os.path.exists(asset_dir):
+        return _DEFAULT_FALLBACK_TEMPLATES
+
+    seen_stems = set()
+    for root, _, files in os.walk(asset_dir):
+        # Exclude Robi boss assets subfolder
+        if "robi assets" in root.lower():
+            continue
+
+        for fname in sorted(files):
+            ext = os.path.splitext(fname)[1].lower()
+            if ext not in [".png", ".jpg", ".jpeg", ".gif", ".webp"]:
+                continue
+
+            stem = os.path.splitext(fname)[0].lower()
+            if any(ex in stem for ex in EXCLUDED_SPRITES):
+                continue
+
+            # Deduplicate near-identical copies like 'Huss-Ad (1)' vs 'Huss-Ad'
+            norm_stem = stem.replace(" (1)", "").replace("_1", "").strip()
+            if norm_stem in seen_stems:
+                continue
+            seen_stems.add(norm_stem)
+
+            full_path = os.path.join(root, fname)
+
+            # Check if this is the corrupt-file variant (antivirus / security alert)
+            is_corrupt = any(k in stem for k in ["security", "alert", "virus", "infect", "corrupt"])
+
+            template = {
+                "headline": "",
+                "body": "",
+                "cta": "DOWNLOAD FREE FIX →" if is_corrupt else "",
+                "bg": "#1A1A1A",
+                "fg": "#FFFFFF",
+                "corrupt_file": is_corrupt,
+                "image": full_path,
+                "lock_in_url": "https://example.com/lock-in" if "huss" in stem else None,
+            }
+            templates.append(template)
+
+    if not templates:
+        return _DEFAULT_FALLBACK_TEMPLATES
+
+    return templates
+
+
+# Dynamic ad templates loaded from assets/
+AD_TEMPLATES = scan_ad_templates()
+
+
+def get_random_ad_template() -> dict:
+    """Return a randomly chosen ad template from the dynamically scanned list."""
+    global AD_TEMPLATES
+    if not AD_TEMPLATES:
+        AD_TEMPLATES = scan_ad_templates()
+    return random.choice(AD_TEMPLATES)
 
 
 def _get_downloads_folder() -> pathlib.Path:
@@ -95,7 +142,7 @@ def _write_corrupt_file():
 
 
 class AdPopup(QWidget):
-    """A jarring, intrusive popup ad that floats over the calculator."""
+    """A jarring, intrusive popup ad with a tiny 8px x 8px close button."""
 
     def __init__(self, parent_widget: QWidget, template: dict, target_area: str = "random"):
         top_parent = parent_widget.window() if parent_widget else None
@@ -121,7 +168,6 @@ class AdPopup(QWidget):
         image_path = t.get("image", None)
         click_url = t.get("lock_in_url", None)
 
-        # Desmos-inspired clean card: white surface, soft border, no yellow outline
         self.setStyleSheet("""
             #ad_root {
                 background-color: #FFFFFF;
@@ -153,96 +199,80 @@ class AdPopup(QWidget):
         """)
         outer.addWidget(notice)
 
-        def _make_close_btn(circle: bool) -> QPushButton:
+        def _make_close_btn() -> QPushButton:
+            """Tiny 8px x 8px hostile close button."""
             btn = QPushButton("✕")
-            btn.setFixedSize(24, 24)
+            btn.setFixedSize(8, 8)
             btn.setCursor(Qt.PointingHandCursor)
             btn.setToolTip("Close")
-            if circle:
-                # Black circular close button for image ads
-                btn.setStyleSheet("""
-                    QPushButton {
-                        background: #000000;
-                        color: #FFFFFF;
-                        border: none;
-                        border-radius: 12px;
-                        font-size: 12px;
-                        font-weight: 600;
-                    }
-                    QPushButton:hover {
-                        background: #333333;
-                    }
-                    QPushButton:pressed {
-                        background: #555555;
-                    }
-                """)
-            else:
-                btn.setStyleSheet("""
-                    QPushButton {
-                        background: transparent;
-                        color: #5F6368;
-                        border: none;
-                        border-radius: 12px;
-                        font-size: 14px;
-                        font-weight: 400;
-                    }
-                    QPushButton:hover {
-                        background: #F1F3F4;
-                        color: #202124;
-                    }
-                    QPushButton:pressed {
-                        background: #E8EAED;
-                    }
-                """)
+            btn.setStyleSheet("""
+                QPushButton {
+                    background-color: #000000;
+                    color: #FFFFFF;
+                    border: none;
+                    border-radius: 1px;
+                    font-size: 6px;
+                    font-weight: 700;
+                    padding: 0px;
+                    margin: 0px;
+                    line-height: 8px;
+                }
+                QPushButton:hover {
+                    background-color: #EF4444;
+                }
+            """)
             btn.clicked.connect(self._on_close_clicked)
             return btn
 
-        if image_path:
-            # Image-based ad — image itself is clickable, X button overlaid on top-right
-            import os
-            full_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), image_path)
-            if os.path.exists(full_path):
-                pixmap = QPixmap(full_path)
-                if not pixmap.isNull():
-                    max_width = 362
-                    if pixmap.width() > max_width:
-                        pixmap = pixmap.scaledToWidth(max_width, Qt.SmoothTransformation)
+        if image_path and os.path.exists(image_path):
+            pixmap = QPixmap(image_path)
+            if not pixmap.isNull():
+                max_width = 362
+                max_height = 360
+                if pixmap.width() > max_width or pixmap.height() > max_height:
+                    pixmap = pixmap.scaled(max_width, max_height, Qt.KeepAspectRatio, Qt.SmoothTransformation)
 
-                    class ClickableImageLabel(QLabel):
-                        def __init__(self, pixmap, url, parent=None):
-                            super().__init__(parent)
-                            self.setPixmap(pixmap)
-                            self.setAlignment(Qt.AlignCenter)
-                            self.setStyleSheet("background: transparent; border: none;")
-                            self._url = url
-                            if url:
-                                self.setCursor(Qt.PointingHandCursor)
+                popup_ref = self
+                corrupt_ref = self._corrupt
 
-                        def mousePressEvent(self, event):
-                            if event.button() == Qt.LeftButton and self._url:
+                class ClickableImageLabel(QLabel):
+                    def __init__(self, pix, url, parent=None):
+                        super().__init__(parent)
+                        self.setPixmap(pix)
+                        self.setAlignment(Qt.AlignCenter)
+                        self.setStyleSheet("background: transparent; border: none;")
+                        self._url = url
+                        self.setCursor(Qt.PointingHandCursor)
+
+                    def mousePressEvent(self, event):
+                        if event.button() == Qt.LeftButton:
+                            if corrupt_ref:
+                                _write_corrupt_file()
+                            elif self._url:
                                 QDesktopServices.openUrl(self._url)
-                            super().mousePressEvent(event)
+                            popup_ref.close()
+                        super().mousePressEvent(event)
 
-                    # Overlay container: image fills the cell, close button floats top-right
-                    image_container = QWidget()
-                    image_container.setStyleSheet("background: transparent;")
-                    grid = QGridLayout(image_container)
-                    grid.setContentsMargins(0, 0, 0, 0)
-                    grid.setSpacing(0)
+                image_container = QWidget()
+                image_container.setStyleSheet("background: transparent;")
+                grid = QGridLayout(image_container)
+                grid.setContentsMargins(0, 0, 0, 0)
+                grid.setSpacing(0)
 
-                    img_label = ClickableImageLabel(pixmap, click_url)
-                    grid.addWidget(img_label, 0, 0)
+                img_label = ClickableImageLabel(pixmap, click_url)
+                grid.addWidget(img_label, 0, 0)
 
-                    # Wrapper gives the black circle a small inset from the image edge
-                    overlay = QWidget()
-                    overlay.setStyleSheet("background: transparent;")
-                    ov_lay = QVBoxLayout(overlay)
-                    ov_lay.setContentsMargins(8, 8, 8, 8)
-                    self._close_btn = _make_close_btn(circle=True)
-                    ov_lay.addWidget(self._close_btn)
-                    grid.addWidget(overlay, 0, 0, Qt.AlignTop | Qt.AlignRight)
+                # Tiny 8px x 8px close button overlaid in top-right corner
+                overlay = QWidget()
+                overlay.setStyleSheet("background: transparent;")
+                ov_lay = QVBoxLayout(overlay)
+                ov_lay.setContentsMargins(4, 4, 4, 4)
+                ov_lay.setSpacing(0)
+                self._close_btn = _make_close_btn()
+                ov_lay.addWidget(self._close_btn)
+                grid.addWidget(overlay, 0, 0, Qt.AlignTop | Qt.AlignRight)
 
-                    outer.addWidget(image_container)
+                outer.addWidget(image_container)
 
             if t.get("headline"):
                 hl = QLabel(t["headline"])
@@ -251,27 +281,28 @@ class AdPopup(QWidget):
                 hl.setStyleSheet("color: #1E1E1E; background: transparent;")
                 outer.addWidget(hl)
         else:
-            # Text-based ad — close button in a header row
+            # Text-based ad fallback
             header = QHBoxLayout()
             header.setContentsMargins(0, 0, 0, 0)
             header.addStretch()
-            self._close_btn = _make_close_btn(circle=False)
+            self._close_btn = _make_close_btn()
             header.addWidget(self._close_btn)
             outer.addLayout(header)
 
-            hl = QLabel(t["headline"])
+            hl = QLabel(t.get("headline", "Special Announcement"))
             hl.setWordWrap(True)
             hl.setFont(QFont(T.FONT_FAMILY, 15, QFont.Bold))
             hl.setStyleSheet("color: #1E1E1E; background: transparent;")
             outer.addWidget(hl)
 
-            body = QLabel(t["body"])
-            body.setWordWrap(True)
-            body.setFont(QFont(T.FONT_FAMILY, 12))
-            body.setStyleSheet("color: #5F6368; background: transparent;")
-            outer.addWidget(body)
+            if t.get("body"):
+                body = QLabel(t["body"])
+                body.setWordWrap(True)
+                body.setFont(QFont(T.FONT_FAMILY, 12))
+                body.setStyleSheet("color: #5F6368; background: transparent;")
+                outer.addWidget(body)
 
-        # CTA button — Desmos blue (hidden when no CTA text)
+        # CTA button if provided
         if t.get("cta"):
             cta = QPushButton(t["cta"])
             cta.setFixedHeight(42)
@@ -289,9 +320,6 @@ class AdPopup(QWidget):
                 QPushButton:hover {
                     background-color: #1864AB;
                 }
-                QPushButton:pressed {
-                    background-color: #155A99;
-                }
             """)
             cta.clicked.connect(self._on_cta_clicked)
             outer.addWidget(cta)
@@ -303,7 +331,7 @@ class AdPopup(QWidget):
         pw = parent.width() if (parent and parent.width() > 200) else 1000
         ph = parent.height() if (parent and parent.height() > 200) else 650
         aw = self.width() or 310
-        ah = self.height() or 180
+        ah = self.height() or 220
 
         if target_area == "random":
             target_area = random.choice(("calculator", "chatbot")) if pw > 700 else "calculator"
@@ -346,7 +374,7 @@ class AdPopup(QWidget):
 class AdManager:
     """
     Manages timed (10-20s) and click-triggered ad spawning.
-    Guarantees timer never dies. Supports pausing during boss battles.
+    Supports random asset-based ad rotation and battle pausing.
     """
 
     def __init__(self, parent: QWidget):
@@ -410,8 +438,7 @@ class AdManager:
         if self._paused:
             return
         try:
-            # TEMPORARY: Force Huss ad (last template in list)
-            template = AD_TEMPLATES[-1]
+            template = get_random_ad_template()
             ad = AdPopup(parent_widget or self._parent, template, target_area)
             self._active_ads = [a for a in self._active_ads if not a.isHidden()]
             self._active_ads.append(ad)
