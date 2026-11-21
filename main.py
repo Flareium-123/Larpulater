@@ -28,7 +28,6 @@ import ui_theme as T
 from calculator_logic import safe_eval, format_number, build_choices
 from ad_system import AdManager
 from robi_chat import RobiChatWidget
-from paywall import PaywallModal
 from robi_battle import RobiBattleOverlay
 
 # ── State constants ───────────────────────────────────────────────────────────
@@ -370,8 +369,8 @@ class CalculaterApp(QMainWindow):
     def __init__(self):
         super().__init__()
         self.setWindowTitle("Calculater")
-        self.setMinimumSize(900, 620)
-        self.resize(1100, 680)
+        self.setMinimumSize(460, 620)
+        self.resize(480, 680)
 
         # State
         self._state        = STATE_IDLE
@@ -496,16 +495,16 @@ class CalculaterApp(QMainWindow):
         outer.addWidget(left, 0)
 
         # ── VERTICAL DIVIDER ──────────────────────────────────────────────────
-        vdiv = QFrame()
-        vdiv.setFrameShape(QFrame.VLine)
-        vdiv.setStyleSheet(f"color: {T.BORDER_SOFT};")
-        vdiv.setFixedWidth(1)
-        outer.addWidget(vdiv)
+        self._right_divider = QFrame()
+        self._right_divider.setFrameShape(QFrame.VLine)
+        self._right_divider.setStyleSheet(f"color: {T.BORDER_SOFT};")
+        self._right_divider.setFixedWidth(1)
+        outer.addWidget(self._right_divider)
 
         # ── RIGHT PANEL: answer choices + Robi ───────────────────────────────
-        right_splitter = QSplitter(Qt.Vertical)
-        right_splitter.setHandleWidth(1)
-        right_splitter.setStyleSheet("QSplitter::handle { background: transparent; }")
+        self._right_splitter = QSplitter(Qt.Vertical)
+        self._right_splitter.setHandleWidth(1)
+        self._right_splitter.setStyleSheet("QSplitter::handle { background: transparent; }")
 
         # Answer area
         answer_container = QWidget()
@@ -520,26 +519,6 @@ class CalculaterApp(QMainWindow):
         self._ans_title.setStyleSheet(f"color: {T.TEXT_PRIMARY};")
         ans_title_row.addWidget(self._ans_title)
         ans_title_row.addStretch()
-
-        # "Instant Answer (Skip)" pill
-        self._skip_btn = QPushButton("⚡  Instant Answer (Skip)")
-        self._skip_btn.setFixedHeight(32)
-        self._skip_btn.setCursor(Qt.PointingHandCursor)
-        self._skip_btn.setStyleSheet(f"""
-            QPushButton {{
-                background-color: {T.ACCENT_PILL};
-                color: white;
-                border: none;
-                border-radius: 16px;
-                font-size: 12px;
-                font-weight: 600;
-                padding: 0 14px;
-            }}
-            QPushButton:hover {{ background-color: {T.ACCENT_HOVER}; }}
-        """)
-        self._skip_btn.clicked.connect(self._on_skip)
-        self._skip_btn.hide()
-        ans_title_row.addWidget(self._skip_btn)
 
         # Circular Chatbot Avatar Icon
         self._robi_circle_btn = QPushButton("🤖")
@@ -584,7 +563,7 @@ class CalculaterApp(QMainWindow):
         dp_title.setStyleSheet("color: #DC2626; background: transparent;")
         dp_lay.addWidget(dp_title)
 
-        self._debate_desc = QLabel("Robi thinks your explanation is a delusion. Argue with Robi to extract a hint, or revise your essay.")
+        self._debate_desc = QLabel("Robi thinks your explanation is a delusion. Argue with Robi or revise your essay.")
         self._debate_desc.setFont(QFont(T.FONT_FAMILY, 10))
         self._debate_desc.setWordWrap(True)
         self._debate_desc.setStyleSheet("color: #7F1D1D; background: transparent;")
@@ -690,7 +669,7 @@ class CalculaterApp(QMainWindow):
         self._solved_frame.hide()
         self._answer_lay.addWidget(self._solved_frame)
 
-        right_splitter.addWidget(answer_container)
+        self._right_splitter.addWidget(answer_container)
 
         # ── Robi chat area ────────────────────────────────────────────────────
         robi_container = QWidget()
@@ -728,10 +707,12 @@ class CalculaterApp(QMainWindow):
         self._robi_widget.hide()
         robi_outer_lay.addWidget(self._robi_widget, 1)
 
-        right_splitter.addWidget(robi_container)
-        right_splitter.setSizes([400, 280])
+        self._right_splitter.addWidget(robi_container)
+        self._right_splitter.setSizes([400, 280])
 
-        outer.addWidget(right_splitter, 1)
+        outer.addWidget(self._right_splitter, 1)
+        self._right_divider.hide()
+        self._right_splitter.hide()
 
     # ══════════════════════════════════════════════════════════════════════════
     # Keypad population & scramble
@@ -853,8 +834,12 @@ class CalculaterApp(QMainWindow):
     # ══════════════════════════════════════════════════════════════════════════
     def _transition_to_choices(self):
         self._state = STATE_CHOICES
+        self._right_divider.show()
+        self._right_splitter.show()
+        self.resize(max(self.width(), 1100), max(self.height(), 680))
         # Update Robi context
         self._robi_widget.set_context(self._expression, self._choices)
+        self._robi_widget.show()
 
         # Build choice cards
         self._idle_placeholder.hide()
@@ -874,7 +859,6 @@ class CalculaterApp(QMainWindow):
 
         self._cards_lay.addStretch()
         self._cards_widget.show()
-        self._skip_btn.show()
         self._ans_title.setText("Choose the correct answer:")
         self._result_label.setText("?")
         self._state = STATE_CONFIRM   # allow clicking cards
@@ -929,7 +913,6 @@ class CalculaterApp(QMainWindow):
         self._debate_panel.hide()
         self._cards_widget.hide()
         self._idle_placeholder.hide()
-        self._skip_btn.hide()
         true_str = format_number(self._true_answer)
         self._solved_value_label.setText(true_str)
         self._result_label.setText(true_str)
@@ -950,8 +933,11 @@ class CalculaterApp(QMainWindow):
         self._cards_widget.hide()
         self._solved_frame.hide()
         self._debate_panel.hide()
-        self._skip_btn.hide()
         self._idle_placeholder.show()
+        self._robi_widget.hide()
+        self._right_splitter.hide()
+        self._right_divider.hide()
+        self.resize(480, 680)
         self._ans_title.setText("Select Answer")
         # Clear cards
         while self._cards_lay.count():
@@ -962,12 +948,6 @@ class CalculaterApp(QMainWindow):
     # ══════════════════════════════════════════════════════════════════════════
     # Misc actions
     # ══════════════════════════════════════════════════════════════════════════
-    def _on_skip(self):
-        if self._true_answer is None:
-            return
-        modal = PaywallModal(format_number(self._true_answer), self)
-        modal.exec()
-
     def _toggle_robi(self):
         if self._robi_widget.isVisible():
             self._robi_widget.hide()
@@ -1008,7 +988,7 @@ class CalculaterApp(QMainWindow):
         self._battle_overlay.setFocus()
 
     def _on_battle_won(self):
-        """Victory: Robi admits defeat and drops the secret phrase."""
+        """Victory: Robi admits defeat; the hint appears in the battle scene."""
         self._robi_widget.post_battle_victory()
         self._robi_widget.show()
         self.ad_manager.resume()

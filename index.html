@@ -180,21 +180,6 @@ body {
 .choice-btn:active { transform: rotate(var(--skew,0deg)) translateY(1px); box-shadow: 2px 2px 0 var(--shadow); }
 .choice-btn.sure { background: #fff3cd; color: #856404; border-color: #856404; }
 
-#skip-btn {
-  margin-top: 8px;
-  padding: 6px 14px;
-  font-family: 'Special Elite', serif;
-  font-size: 0.8rem;
-  background: #2c3e50;
-  color: #ecf0f1;
-  border: 3px solid #1a252f;
-  border-radius: 1px 5px 2px 4px;
-  cursor: pointer;
-  box-shadow: 3px 3px 0 #1a252f;
-  display: block;
-  transform: rotate(-0.5deg);
-}
-#skip-btn:hover { background: #34495e; }
 #robi-toggle-btn {
   margin-top: 8px;
   margin-left: 8px;
@@ -396,53 +381,6 @@ body {
 .modal-btn.danger  { background: #c0392b; color: white; border-color: #7b241c; }
 .modal-btn.secondary { background: var(--panel); color: var(--ink); }
 .error-msg { color: var(--red); font-size: 0.82rem; font-weight: bold; margin-top: 6px; display: none; }
-
-/* ===== PAYWALL MODAL ===== */
-#paywall-modal .modal-box { transform: rotate(0.3deg); }
-#paywall-modal h2 { color: #2c3e50; }
-.cipher-text {
-  font-family: 'VT323', monospace;
-  font-size: 1.3rem;
-  background: #2c3e50;
-  color: #2ecc71;
-  padding: 12px;
-  letter-spacing: 3px;
-  border: 3px solid #1a252f;
-  word-break: break-all;
-  text-shadow: 0 0 6px #2ecc71;
-  margin: 10px 0;
-}
-.tier-selector {
-  display: grid;
-  grid-template-columns: 1fr 1fr 1fr;
-  gap: 8px;
-  margin: 12px 0;
-}
-.tier-card {
-  border: 3px solid #2c3e50;
-  border-radius: 3px;
-  padding: 10px 8px;
-  text-align: center;
-  cursor: pointer;
-  font-family: 'Special Elite', serif;
-  background: var(--panel);
-  transition: background 0.15s;
-  font-size: 0.82rem;
-}
-.tier-card:hover, .tier-card.selected { background: #2c3e50; color: white; }
-.tier-card .tier-price { font-size: 1.1rem; font-weight: bold; display: block; margin-top: 4px; }
-.cc-form { font-size: 0.82rem; }
-.cc-form input {
-  width: 100%;
-  margin-top: 4px; margin-bottom: 8px;
-  padding: 6px 8px;
-  border: 2px solid #aaa;
-  font-family: monospace;
-  font-size: 0.85rem;
-  background: #fffef5;
-  outline: none;
-}
-.cc-row { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
 
 /* ===== POPUP ADS ===== */
 .popup-ad {
@@ -659,7 +597,6 @@ body {
       <button class="choice-btn" id="choiceC" onclick="choiceClick('C')"></button>
       <button class="choice-btn" id="choiceD" onclick="choiceClick('D')">D.)&nbsp; None of the above.</button>
       <div class="choices-action-row">
-        <button id="skip-btn" onclick="openPaywall()">&#128274; Instant Answer (Skip)</button>
         <button id="robi-toggle-btn" onclick="toggleRobi()">&#129302; Ask Robi</button>
       </div>
     </div>
@@ -749,45 +686,6 @@ body {
   </div>
 </div>
 
-<!-- ===== PAYWALL MODAL ===== -->
-<div class="modal-overlay" id="paywall-modal">
-  <div class="modal-box">
-    <h2>&#128274; Calculater PRO &mdash; Decrypt Your Answer</h2>
-    <p>Your answer has been <strong>encrypted</strong> for your protection using AES-9999 military-grade encryption:</p>
-    <div class="cipher-text" id="cipher-display"></div>
-    <p>To decrypt your answer, subscribe to <strong>Calculater PRO</strong>:</p>
-    <div class="tier-selector">
-      <div class="tier-card selected" id="tier-basic" onclick="selectTier(this)">
-        Basic<span class="tier-price">\$4.99<br><small style="font-size:0.65rem">/mo</small></span>
-        <div style="font-size:0.65rem;margin-top:4px">1 decrypt/day</div>
-      </div>
-      <div class="tier-card" id="tier-pro" onclick="selectTier(this)">
-        Pro<span class="tier-price">\$12.99<br><small style="font-size:0.65rem">/mo</small></span>
-        <div style="font-size:0.65rem;margin-top:4px">Unlimited decrypts</div>
-      </div>
-      <div class="tier-card" id="tier-ultra" onclick="selectTier(this)">
-        Ultra&#11088;<span class="tier-price">\$29.99<br><small style="font-size:0.65rem">/mo</small></span>
-        <div style="font-size:0.65rem;margin-top:4px">Answers + attitude</div>
-      </div>
-    </div>
-    <div class="cc-form">
-      <strong>Payment Details:</strong>
-      <input type="text" placeholder="Cardholder Name" maxlength="40" />
-      <input type="text" placeholder="Card Number (1234 5678 9012 3456)" maxlength="19" />
-      <div class="cc-row">
-        <input type="text" placeholder="MM/YY" maxlength="5" />
-        <input type="text" placeholder="CVV" maxlength="4" />
-      </div>
-      <input type="text" placeholder="Billing ZIP Code" maxlength="10" />
-    </div>
-    <div style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap">
-      <button class="modal-btn primary" onclick="fakeSubscribe()">&#128274; Subscribe &amp; Decrypt</button>
-      <button class="modal-btn secondary" onclick="closeModal('paywall-modal')">Maybe Later</button>
-    </div>
-    <p style="font-size:0.65rem;color:#aaa;margin-top:8px;">By subscribing you agree to our Terms of Service, Privacy Policy, Auto-Renewal Policy, Cancellation Policy (requires 30 days notice, fax only), and Subsidiary Data-Sharing Agreement. We are not responsible for incorrect answers.</p>
-  </div>
-</div>
-
 <!-- ===== ROBI FULLSCREEN AD ===== -->
 <div id="robi-ad-overlay">
   <button class="ad-close-fs" onclick="closeRobiAd()">x</button>
@@ -852,16 +750,6 @@ function safeEval(expr) {
     if (typeof result !== 'number' || !isFinite(result)) return null;
     return Math.round(result * 1e10) / 1e10;
   } catch { return null; }
-}
-
-// =============================================
-//  CIPHER / PAYWALL
-// =============================================
-function generateCipher(answer) {
-  const chars = '0123456789ABCDEFabcdef#@!$%^&*~';
-  let out = '0x';
-  for (let i = 0; i < 28; i++) out += chars[Math.floor(Math.random() * chars.length)];
-  return out;
 }
 
 // =============================================
@@ -1061,29 +949,6 @@ function wipe() {
     state = States.IDLE;
     updateDisplay();
   }, 4000);
-}
-
-// =============================================
-//  PAYWALL
-// =============================================
-function openPaywall() {
-  if (!trueAnswer && trueAnswer !== 0) return;
-  document.getElementById('cipher-display').textContent = generateCipher(trueAnswer);
-  openModal('paywall-modal');
-}
-
-function selectTier(el) {
-  document.querySelectorAll('.tier-card').forEach(c => c.classList.remove('selected'));
-  el.classList.add('selected');
-}
-
-function fakeSubscribe() {
-  // Just close — never actually decrypts
-  closeModal('paywall-modal');
-  setTimeout(() => {
-    spawnPopupAd();
-    alert('Payment processing... Our servers are currently experiencing some issues. Please try again in a few minutes. (Error Code: DEFINITELY_NOT_A_SCAM_404)');
-  }, 500);
 }
 
 // =============================================

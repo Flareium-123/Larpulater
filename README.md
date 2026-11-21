@@ -29,11 +29,6 @@ Pressing `=` **never** shows the answer directly. Instead:
 - **Each subsequent click** → 20% chance of fullscreen fake ad
 - Strictly scoped to the active calculator equation
 
-### 🔒 Paywall / Decrypt Feature
-- "Instant Answer (Skip)" button reveals scrambled ciphertext
-- Fake SaaS paywall with tier selector + mock credit card form
-- Payment always "fails" with a server error
-
 ### 💥 Hostile Popup Ad System
 - **Timer**: random popup every 10–20 seconds
 - **Key press**: 10% chance per button click

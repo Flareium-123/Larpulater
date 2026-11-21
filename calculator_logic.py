@@ -110,17 +110,3 @@ def build_choices(true_val: float) -> list[dict]:
         "is_correct": False,
     })
     return choices
-
-
-# ── Cipher / Paywall ──────────────────────────────────────────────────────────
-_CIPHER_CHARS = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz!@#$%^&*"
-
-def encrypt_answer(value_str: str) -> str:
-    """Return a visually scrambled ciphertext string for the paywall."""
-    result = []
-    for ch in value_str:
-        result.append(random.choice(_CIPHER_CHARS))
-        result.append(random.choice("0x#@!"))
-    result.extend(random.choices(_CIPHER_CHARS, k=8))
-    random.shuffle(result)
-    return "0x" + "".join(result[:24]) + "..."

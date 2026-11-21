@@ -15,7 +15,7 @@ import ui_theme as T
 # ── Ad copy templates ─────────────────────────────────────────────────────────
 AD_TEMPLATES = [
     {
-        "headline": "🎉 YOU WON A FREE iPhone 15 Pro!!!",
+        "headline": "YOU WON A FREE iPhone 15 Pro!!!",
         "body": "Claim your prize NOW before it expires in 00:03!",
         "cta": "CLAIM FREE PRIZE »",
         "bg": "#FF2222",
@@ -23,7 +23,7 @@ AD_TEMPLATES = [
         "corrupt_file": False,
     },
     {
-        "headline": "⚠️ Your PC is INFECTED with 47 viruses!",
+        "headline": "Your PC is INFECTED with 47 viruses!",
         "body": "Download our FREE antivirus scanner to remove all threats immediately.",
         "cta": "Download FREE Fix →",
         "bg": "#FF6B00",
@@ -31,7 +31,7 @@ AD_TEMPLATES = [
         "corrupt_file": True,   # triggers the 0-KB readme download
     },
     {
-        "headline": "📢 MATH GENIUS DETECTED!",
+        "headline": "MATH GENIUS DETECTED!",
         "body": "Local educators HATE this one trick. Solve any equation instantly!",
         "cta": "Learn THE SECRET →",
         "bg": "#7B00FF",
@@ -39,7 +39,7 @@ AD_TEMPLATES = [
         "corrupt_file": False,
     },
     {
-        "headline": "💰 Make $8,500/week from home!",
+        "headline": "Make $8,500/week from home!",
         "body": "Thousands of calculater users earn passive income. Zero effort required!",
         "cta": "START EARNING NOW »",
         "bg": "#006600",
@@ -47,7 +47,7 @@ AD_TEMPLATES = [
         "corrupt_file": False,
     },
     {
-        "headline": "🔥 HOT SINGLES want to do your math!",
+        "headline": "HOT SINGLES want to do your math!",
         "body": "Local mathematicians in your area are waiting to explain their solutions.",
         "cta": "MEET THEM NOW »",
         "bg": "#CC0055",
@@ -55,7 +55,7 @@ AD_TEMPLATES = [
         "corrupt_file": False,
     },
     {
-        "headline": "⚡ LIMITED TIME: Calculater PRO UNLOCKED",
+        "headline": "LIMITED TIME: Calculater PRO UNLOCKED",
         "body": "Someone nearby just unlocked PRO access for FREE. Grab your copy before it's gone!",
         "cta": "Get PRO FREE !!!",
         "bg": "#0033AA",
