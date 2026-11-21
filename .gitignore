@@ -1,0 +1,23 @@
+# Environment & Secrets (NEVER push API keys)
+.env
+dist/.env
+*.env
+
+# Build outputs & executables
+dist/
+build/
+*.exe
+
+# Python cache & virtual environment
+__pycache__/
+*.py[cod]
+*$py.class
+*.spec.bak
+debug.log
+startup.log
+out.txt
+err.txt
+
+# IDE / Editor configs
+.vscode/
+.idea/
