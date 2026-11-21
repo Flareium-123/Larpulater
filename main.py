@@ -987,10 +987,11 @@ class CalculaterApp(QMainWindow):
         self.ad_manager.resume()
 
     def _on_battle_lost(self):
-        """Defeat: Robi mocks the player."""
+        """Defeat: Robi mocks the player and equation is wiped."""
         self._robi_widget.post_battle_defeat()
         self._robi_widget.show()
         self.ad_manager.resume()
+        self._reset()
 
     def _on_battle_ended(self):
         """Clean up when battle finishes."""
